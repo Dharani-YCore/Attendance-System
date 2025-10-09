@@ -33,6 +33,18 @@ CREATE TABLE reports (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- PASSWORD RESETS TABLE (for OTP functionality)
+CREATE TABLE password_resets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(150) NOT NULL,
+    otp VARCHAR(6) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    used BOOLEAN DEFAULT FALSE,
+    UNIQUE KEY unique_email (email)
+);
+
 -- INDEXING for faster queries
 CREATE INDEX idx_user_attendance ON attendance(user_id, date);
 CREATE INDEX idx_user_reports ON reports(user_id, report_date);
+CREATE INDEX idx_password_resets_email ON password_resets(email, expires_at);

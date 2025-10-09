@@ -1,7 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'providers/auth_provider.dart';
+import 'providers/attendance_provider.dart';
+import 'providers/user_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/set_password_screen.dart';
 import 'screens/forget_password_screen.dart';
+import 'screens/verification_screen.dart';
+import 'screens/new_password_screen.dart';
+import 'screens/dashboard_screen.dart';
+import 'screens/profile_screen.dart';
+import 'screens/qr_scanner_screen.dart';
+import 'screens/attendance_history_screen.dart';
+import 'screens/reports_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -12,18 +23,70 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'QR Scan App',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        fontFamily: 'Roboto',
-        primarySwatch: Colors.cyan,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => AttendanceProvider()),
+        ChangeNotifierProvider(create: (_) => UserProvider()),
+      ],
+      child: MaterialApp(
+        title: 'Smart Attendance System',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          fontFamily: 'Roboto',
+          primarySwatch: Colors.cyan,
+          useMaterial3: true,
+        ),
+        home: const AuthWrapper(),
+        routes: {
+          '/login': (context) => const LoginScreen(),
+          '/setPassword': (context) => const SetPasswordScreen(),
+          '/forgetPassword': (context) => const ForgetPasswordScreen(),
+          '/verification': (context) => const VerificationScreen(),
+          '/newPassword': (context) => const NewPasswordScreen(),
+          '/dashboard': (context) => const DashboardScreen(),
+          '/profile': (context) => const ProfileScreen(),
+          '/qr_scanner': (context) => const QRScannerScreen(),
+          '/history': (context) => const AttendanceHistoryScreen(),
+          '/reports': (context) => const ReportsScreen(),
+        },
       ),
-      initialRoute: '/',
-      routes: {
-        '/': (context) => const LoginScreen(),
-        '/setPassword': (context) => const SetPasswordScreen(),
-        '/forgetPassword': (context) => const ForgetPasswordScreen(),
+    );
+  }
+}
+
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    // Initialize auth after the widget is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<AuthProvider>(context, listen: false).initializeAuth();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, child) {
+        if (authProvider.isLoading) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        
+        return authProvider.isLoggedIn 
+            ? const DashboardScreen() 
+            : const LoginScreen();
       },
     );
   }

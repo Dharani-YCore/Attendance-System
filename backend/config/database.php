@@ -1,0 +1,129 @@
+<?php
+require_once __DIR__ . '/env.php';
+
+header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
+
+// Handle preflight requests
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    exit(0);
+}
+
+class Database {
+    private $host;
+    private $db_name;
+    private $username;
+    private $password;
+    public $conn;
+
+    public function __construct() {
+        $this->host = env('DB_HOST', 'localhost');
+        $this->db_name = env('DB_NAME', 'attendance');
+        $this->username = env('DB_USERNAME', 'root');
+        $this->password = env('DB_PASSWORD', '');
+    }
+
+    public function getConnection() {
+        $this->conn = null;
+
+        try {
+            $this->conn = new PDO("mysql:host=" . $this->host . ";dbname=" . $this->db_name, $this->username, $this->password);
+            $this->conn->exec("set names utf8");
+            $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        } catch(PDOException $exception) {
+            echo json_encode(array("success" => false, "message" => "Connection error: " . $exception->getMessage()));
+            exit();
+        }
+
+        return $this->conn;
+    }
+}
+
+// JWT Helper Functions
+function generateJWT($userId, $email) {
+    $header = json_encode(['typ' => 'JWT', 'alg' => 'HS256']);
+    $payload = json_encode([
+        'user_id' => $userId,
+        'email' => $email,
+        'exp' => time() + (24 * 60 * 60) // 24 hours
+    ]);
+    
+    $headerEncoded = base64url_encode($header);
+    $payloadEncoded = base64url_encode($payload);
+    
+    $signature = hash_hmac('sha256', $headerEncoded . "." . $payloadEncoded, env('JWT_SECRET_KEY', 'your-secret-key'), true);
+    $signatureEncoded = base64url_encode($signature);
+    
+    return $headerEncoded . "." . $payloadEncoded . "." . $signatureEncoded;
+}
+
+function verifyJWT($jwt) {
+    $tokenParts = explode('.', $jwt);
+    if (count($tokenParts) != 3) {
+        return false;
+    }
+    
+    $header = base64url_decode($tokenParts[0]);
+    $payload = base64url_decode($tokenParts[1]);
+    $signatureProvided = $tokenParts[2];
+    
+    $expiration = json_decode($payload)->exp;
+    $isTokenExpired = ($expiration - time()) < 0;
+    
+    if ($isTokenExpired) {
+        return false;
+    }
+    
+    $base64UrlHeader = base64url_encode($header);
+    $base64UrlPayload = base64url_encode($payload);
+    $signature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, env('JWT_SECRET_KEY', 'your-secret-key'), true);
+    $base64UrlSignature = base64url_encode($signature);
+    
+    $isSignatureValid = ($base64UrlSignature === $signatureProvided);
+    
+    if ($isSignatureValid) {
+        return json_decode($payload);
+    } else {
+        return false;
+    }
+}
+
+function base64url_encode($data) {
+    return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+}
+
+function base64url_decode($data) {
+    return base64_decode(str_pad(strtr($data, '-_', '+/'), strlen($data) % 4, '=', STR_PAD_RIGHT));
+}
+
+function getAuthToken() {
+    $headers = getallheaders();
+    if (isset($headers['Authorization'])) {
+        $authHeader = $headers['Authorization'];
+        if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+            return $matches[1];
+        }
+    }
+    return null;
+}
+
+function validateRequest() {
+    $token = getAuthToken();
+    if (!$token) {
+        http_response_code(401);
+        echo json_encode(array("success" => false, "message" => "Access denied. No token provided."));
+        exit();
+    }
+    
+    $decoded = verifyJWT($token);
+    if (!$decoded) {
+        http_response_code(401);
+        echo json_encode(array("success" => false, "message" => "Invalid token."));
+        exit();
+    }
+    
+    return $decoded;
+}
+?>

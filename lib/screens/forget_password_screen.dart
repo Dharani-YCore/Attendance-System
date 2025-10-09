@@ -30,7 +30,16 @@ class ForgetPasswordScreen extends StatelessWidget {
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 40),
-                _buildTextField('Enter Email'),
+                TextField(
+                  decoration: InputDecoration(
+                    labelText: 'Enter Email',
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 30),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
@@ -41,25 +50,18 @@ class ForgetPasswordScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  onPressed: () {},
-                  child: const Text('Send OTP',
-                      style: TextStyle(fontSize: 16, color: Colors.black)),
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/verification');
+                  },
+                  child: const Text(
+                    'Send OTP',
+                    style: TextStyle(fontSize: 16, color: Colors.black),
+                  ),
                 ),
               ],
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildTextField(String label) {
-    return TextField(
-      decoration: InputDecoration(
-        labelText: label,
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }

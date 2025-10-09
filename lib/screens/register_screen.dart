@@ -1,100 +1,38 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 
-class SetPasswordScreen extends StatefulWidget {
-  const SetPasswordScreen({super.key});
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
 
   @override
-  State<SetPasswordScreen> createState() => _SetPasswordScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _SetPasswordScreenState extends State<SetPasswordScreen> {
-  final TextEditingController _newPasswordController = TextEditingController();
+class _RegisterScreenState extends State<RegisterScreen> {
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
 
-  void _showSuccessDialog(BuildContext context, String username) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.check_circle_outline,
-                  color: Colors.green,
-                  size: 70,
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  "Password Set Successfully!",
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  "Your password has been set. Please login with your new password.",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16, color: Colors.black54),
-                ),
-                const SizedBox(height: 30),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.cyanAccent[100],
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 50, vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  onPressed: () {
-                    Navigator.pop(context); // close dialog
-                    Navigator.pushReplacementNamed(context, '/'); // go to login
-                  },
-                  child: const Text(
-                    "Continue to Login",
-                    style: TextStyle(fontSize: 16, color: Colors.black),
-                  ),
-                )
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _handleSetPassword() async {
-    final newPassword = _newPasswordController.text.trim();
+  void _handleRegister() async {
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
-    final email = ModalRoute.of(context)?.settings.arguments as String?;
 
-    if (newPassword.isEmpty || confirmPassword.isEmpty) {
+    if (name.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
       _showMessage('Please fill in all fields', isError: true);
       return;
     }
 
-    if (newPassword != confirmPassword) {
+    if (password != confirmPassword) {
       _showMessage('Passwords do not match', isError: true);
       return;
     }
 
-    if (newPassword.length < 6) {
+    if (password.length < 6) {
       _showMessage('Password must be at least 6 characters', isError: true);
-      return;
-    }
-
-    if (email == null) {
-      _showMessage('Email not provided', isError: true);
       return;
     }
 
@@ -103,15 +41,16 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     });
 
     try {
-      final result = await ApiService.setPassword(email, newPassword);
+      final result = await ApiService.register(name, email, password);
       
       if (result['success']) {
-        _showSuccessDialog(context, email);
+        _showMessage('Registration successful!');
+        Navigator.pushReplacementNamed(context, '/dashboard');
       } else {
         _showMessage(result['message'], isError: true);
       }
     } catch (e) {
-      _showMessage('Failed to set password: $e', isError: true);
+      _showMessage('Registration failed: $e', isError: true);
     } finally {
       setState(() {
         _isLoading = false;
@@ -150,19 +89,28 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
           child: SingleChildScrollView(
             child: Column(
               children: [
-                const Text(
-                  'Set Password',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                const Icon(
+                  Icons.person_add,
+                  size: 80,
+                  color: Colors.cyan,
                 ),
                 const SizedBox(height: 20),
                 const Text(
-                  'Please set your password for first-time login',
-                  textAlign: TextAlign.center,
+                  'Create Account',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Join our attendance system',
                   style: TextStyle(fontSize: 16, color: Colors.black54),
                 ),
                 const SizedBox(height: 40),
-                _buildTextField('New Password', 
-                    controller: _newPasswordController, isPassword: true),
+                _buildTextField('Full Name', controller: _nameController),
+                const SizedBox(height: 20),
+                _buildTextField('Email Address', controller: _emailController),
+                const SizedBox(height: 20),
+                _buildTextField('Password', 
+                    controller: _passwordController, isPassword: true),
                 const SizedBox(height: 20),
                 _buildTextField('Confirm Password', 
                     controller: _confirmPasswordController, isPassword: true),
@@ -177,7 +125,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    onPressed: _isLoading ? null : _handleSetPassword,
+                    onPressed: _isLoading ? null : _handleRegister,
                     child: _isLoading
                         ? const SizedBox(
                             height: 20,
@@ -188,10 +136,27 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                             ),
                           )
                         : const Text(
-                            'Set Password',
+                            'Register',
                             style: TextStyle(fontSize: 16, color: Colors.white),
                           ),
                   ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text("Already have an account? "),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: const Text(
+                        'Login',
+                        style: TextStyle(
+                          color: Colors.cyan,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -210,6 +175,10 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
         filled: true,
         fillColor: Colors.white,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        prefixIcon: Icon(
+          isPassword ? Icons.lock : (label.contains('Email') ? Icons.email : Icons.person),
+          color: Colors.cyan,
+        ),
       ),
     );
   }
