@@ -6,12 +6,14 @@ class AuthProvider with ChangeNotifier {
   bool _isLoggedIn = false;
   bool _isLoading = false;
   String? _errorMessage;
+  String? _action;
 
   // Getters
   Map<String, dynamic>? get currentUser => _currentUser;
   bool get isLoggedIn => _isLoggedIn;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  String? get action => _action;
 
   // Initialize auth state
   Future<void> initializeAuth() async {
@@ -33,29 +35,41 @@ class AuthProvider with ChangeNotifier {
 
   // Login method
   Future<bool> login(String email, String password) async {
+    print('🔄 AuthProvider: Starting login process');
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
+      print('📞 AuthProvider: Calling ApiService.login');
       final result = await ApiService.login(email, password);
+      print('📋 AuthProvider: API result: $result');
+      print('🔍 AuthProvider: Response keys: ${result.keys.toList()}');
+      print('🔍 AuthProvider: success: ${result['success']}');
+      print('🔍 AuthProvider: message: ${result['message']}');
+      print('🔍 AuthProvider: action: ${result['action']}');
       
       if (result['success']) {
+        print('✅ AuthProvider: Login successful');
         _isLoggedIn = true;
         _currentUser = result['user'];
         _errorMessage = null;
         notifyListeners();
         return true;
       } else {
+        print('❌ AuthProvider: Login failed with message: ${result['message']}');
         _errorMessage = result['message'];
+        _action = result['action'];
         notifyListeners();
         return false;
       }
     } catch (e) {
+      print('🚨 AuthProvider: Exception caught: $e');
       _errorMessage = 'Login failed: $e';
       notifyListeners();
       return false;
     } finally {
+      print('🏁 AuthProvider: Login process completed');
       _isLoading = false;
       notifyListeners();
     }

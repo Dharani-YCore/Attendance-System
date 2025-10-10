@@ -3,11 +3,14 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost/attendance_system'; // Change this to your server URL
+  static const String baseUrl = 'http://localhost/attendance_system'; // Use localhost for XAMPP
   
   // Authentication endpoints
   static Future<Map<String, dynamic>> login(String email, String password) async {
     try {
+      print('🔄 Attempting login for: $email');
+      print('🌐 API URL: $baseUrl/auth/login.php');
+      
       final response = await http.post(
         Uri.parse('$baseUrl/auth/login.php'),
         headers: {'Content-Type': 'application/json'},
@@ -17,8 +20,13 @@ class ApiService {
         }),
       );
 
+      print('📡 Response status: ${response.statusCode}');
+      print('📄 Response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        print('✅ Parsed response: $data');
+        
         if (data['success']) {
           // Store user token
           final prefs = await SharedPreferences.getInstance();
@@ -26,12 +34,15 @@ class ApiService {
           await prefs.setInt('user_id', data['user']['id']);
           await prefs.setString('user_name', data['user']['name']);
           await prefs.setString('user_email', data['user']['email']);
+          print('💾 User data stored successfully');
         }
         return data;
       } else {
-        return {'success': false, 'message': 'Server error'};
+        print('❌ Server error: ${response.statusCode}');
+        return {'success': false, 'message': 'Server error: ${response.statusCode}'};
       }
     } catch (e) {
+      print('🚨 Connection error: $e');
       return {'success': false, 'message': 'Connection error: $e'};
     }
   }

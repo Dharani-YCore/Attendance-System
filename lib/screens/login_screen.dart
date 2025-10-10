@@ -17,24 +17,34 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
+    print('🔐 Login attempt - Email: $email');
+
     if (email.isEmpty || password.isEmpty) {
       _showMessage('Please enter both email and password', isError: true);
       return;
     }
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    print('🚀 Calling authProvider.login()');
     final success = await authProvider.login(email, password);
+    
+    print('📊 Login result - Success: $success');
+    print('📝 Error message: ${authProvider.errorMessage}');
     
     // Check if widget is still mounted before using context
     if (!mounted) return;
     
     if (success) {
+      print('✅ Login successful - navigating to dashboard');
       _showMessage('Login successful!');
       Navigator.pushReplacementNamed(context, '/dashboard');
     } else {
-      if (authProvider.errorMessage?.contains('set password') == true) {
+      print('❌ Login failed - checking error message');
+      if (authProvider.action == 'set_password') {
+        print('🔑 Redirecting to set password page');
         Navigator.pushNamed(context, '/setPassword', arguments: email);
       } else {
+        print('🚨 Showing error message: ${authProvider.errorMessage}');
         _showMessage(authProvider.errorMessage ?? 'Login failed', isError: true);
       }
     }
