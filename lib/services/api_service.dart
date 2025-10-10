@@ -1,9 +1,25 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost/attendance_system'; // Use localhost for XAMPP
+  // Use Android emulator loopback when running on Android; use localhost for Web/others
+  static String get baseUrl {
+    if (kIsWeb) {
+      // When running Flutter Web on the same PC as XAMPP
+      return 'http://localhost/Attendance-System/backend';
+    }
+    try {
+      if (Platform.isAndroid) {
+        return 'http://10.0.2.2/Attendance-System/backend';
+      }
+    } catch (_) {
+      // Platform may be unavailable; fall back to localhost
+    }
+    return 'http://localhost/Attendance-System/backend';
+  }
   
   // Authentication endpoints
   static Future<Map<String, dynamic>> login(String email, String password) async {
