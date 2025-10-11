@@ -41,7 +41,26 @@ if (!empty($data->email) && !empty($data->old_password) && !empty($data->new_pas
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         
         // Verify old password
-        if (!password_verify($data->old_password, $row['password'])) {
+        // Handle both hashed passwords and plain text (for first-time users)
+        $passwordMatch = false;
+        
+        if ($row['password'] === null) {
+            // Password is NULL - reject with clear message
+            http_response_code(401);
+            echo json_encode(array(
+                "success" => false,
+                "message" => "No password set. Please contact administrator."
+            ));
+            exit();
+        } else if (password_verify($data->old_password, $row['password'])) {
+            // Hashed password matched
+            $passwordMatch = true;
+        } else if ($data->old_password === $row['password']) {
+            // Plain text password matched (for first-time login users)
+            $passwordMatch = true;
+        }
+        
+        if (!$passwordMatch) {
             http_response_code(401);
             echo json_encode(array(
                 "success" => false,
