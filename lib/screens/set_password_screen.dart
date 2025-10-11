@@ -58,7 +58,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                   ),
                   onPressed: () {
                     Navigator.pop(context); // close dialog
-                    Navigator.pushReplacementNamed(context, '/'); // go to login
+                    Navigator.pushReplacementNamed(context, '/login'); // go to login
                   },
                   child: const Text(
                     "Continue to Login",
