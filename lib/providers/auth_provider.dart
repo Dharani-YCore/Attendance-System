@@ -60,31 +60,25 @@ class AuthProvider with ChangeNotifier {
         _isLoggedIn = true;
         _currentUser = result['user'];
         _errorMessage = null;
+        _isLoading = false;
         notifyListeners();
         return true;
       } else {
         print('❌ AuthProvider: Login failed with message: ${result['message']}');
         _errorMessage = result['message'];
         _action = result['action'];
-        // Don't notify listeners yet if we need to navigate
-        // The login screen will handle navigation, then we'll notify
-        if (result['action'] != 'set_password') {
-          notifyListeners();
-        }
+        _isLoading = false;
+        notifyListeners();
         return false;
       }
     } catch (e) {
       print('🚨 AuthProvider: Exception caught: $e');
       _errorMessage = 'Login failed: $e';
+      _isLoading = false;
       notifyListeners();
       return false;
     } finally {
       print('🏁 AuthProvider: Login process completed');
-      _isLoading = false;
-      // Only notify if we're not navigating to set_password
-      if (_action != 'set_password') {
-        notifyListeners();
-      }
     }
   }
 
