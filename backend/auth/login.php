@@ -20,7 +20,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 
 // Include database and user object
 include_once '../config/database.php';
-include_once '../config/jwt_utils.php';
 include_once '../objects/user.php';
 
 // Get database connection
