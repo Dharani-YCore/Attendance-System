@@ -117,8 +117,8 @@ class AuthProvider with ChangeNotifier {
       if (result['success']) {
         // If token is returned, store user data
         if (result['token'] != null && result['user'] != null) {
-          _user = result['user'];
-          _isAuthenticated = true;
+          _currentUser = result['user'];
+          _isLoggedIn = true;
         }
         _errorMessage = null;
         notifyListeners();
