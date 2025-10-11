@@ -14,13 +14,9 @@ if (!empty($data->email) && !empty($data->password)) {
     $stmt->bindParam(1, $data->email);
     $stmt->execute();
     
-    $num = $stmt->rowCount();
-    
-    if ($num > 0) {
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+    if ($stmt->rowCount() > 0) {
         // Hash password
-        $password_hash = password_hash($data->password, PASSWORD_DEFAULT);
+        $password_hash = password_hash($data->password, PASSWORD_BCRYPT);
         
         // Update password
         $query = "UPDATE users SET password = ? WHERE email = ?";
@@ -29,6 +25,12 @@ if (!empty($data->email) && !empty($data->password)) {
         $stmt->bindParam(2, $data->email);
         
         if ($stmt->execute()) {
+            // Set is_first_login to FALSE
+            $query = "UPDATE users SET is_first_login = FALSE WHERE email = ?";
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(1, $data->email);
+            $stmt->execute();
+            
             echo json_encode(array(
                 "success" => true,
                 "message" => "Password set successfully."
