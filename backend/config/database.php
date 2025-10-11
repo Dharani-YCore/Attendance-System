@@ -32,6 +32,22 @@ class Database {
     }
 }
 
+// OTP Helper Functions
+function generateOTP($length = 6) {
+    $otp = "";
+    for ($i = 0; $i < $length; $i++) {
+        $otp .= random_int(0, 9);
+    }
+    return $otp;
+}
+
+function sendOTPEmail($email, $name, $otp) {
+    require_once __DIR__ . '/../services/email_service.php';
+    $emailService = new EmailService();
+    return $emailService->sendOTP($email, $name, $otp);
+}
+
+
 // JWT Helper Functions
 function generateJWT($userId, $email) {
     $header = json_encode(['typ' => 'JWT', 'alg' => 'HS256']);

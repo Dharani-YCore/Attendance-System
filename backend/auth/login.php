@@ -1,4 +1,5 @@
 <?php
+<<<<<<< HEAD
 // --- CORS & CONTENT-TYPE HEADERS ---
 // Allow requests from any origin. For production, you might want to restrict this to your app's domain.
 header("Access-Control-Allow-Origin: *");
@@ -10,6 +11,16 @@ header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
 header("Access-Control-Max-Age: 3600");
 // Allow specific headers.
 header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+=======
+header("Access-Control-Allow-Origin: *");
+header("Content-Type: application/json; charset=UTF-8");
+header("Access-Control-Allow-Methods: POST");
+header("Access-Control-Max-Age: 3600");
+header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+
+include_once '../config/database.php';
+include_once '../config/jwt_utils.php';
+>>>>>>> 75d7f8e (Login)
 
 // Handle pre-flight requests (OPTIONS method)
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
@@ -31,8 +42,8 @@ $data = json_decode(file_get_contents("php://input"));
 
 // Make sure data is not empty
 if (!empty($data->email) && !empty($data->password)) {
-    // Check if user exists
     $query = "SELECT id, name, email, password FROM users WHERE email = ? LIMIT 0,1";
+    
     $stmt = $db->prepare($query);
     $stmt->bindParam(1, $data->email);
     $stmt->execute();
@@ -42,41 +53,42 @@ if (!empty($data->email) && !empty($data->password)) {
     if ($num > 0) {
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         
-        // Check if password is set (not null)
-        if ($row['password'] === null) {
-            echo json_encode(array(
-                "success" => false,
-                "message" => "Password not set. Please set your password first.",
-                "action" => "set_password"
-            ));
-        } else if (password_verify($data->password, $row['password'])) {
-            // Generate JWT token
-            $token = generateJWT($row['id'], $row['email']);
+        $id = $row['id'];
+        $name = $row['name'];
+        $email = $row['email'];
+        $password_hash = $row['password'];
+        
+        if (password_verify($data->password, $password_hash)) {
+            $token = generateJWT($id, $email);
             
+            http_response_code(200);
             echo json_encode(array(
                 "success" => true,
                 "message" => "Login successful.",
                 "token" => $token,
                 "user" => array(
-                    "id" => $row['id'],
-                    "name" => $row['name'],
-                    "email" => $row['email']
+                    "id" => $id,
+                    "name" => $name,
+                    "email" => $email
                 )
             ));
         } else {
+            http_response_code(401);
             echo json_encode(array(
                 "success" => false,
                 "message" => "Invalid password."
             ));
         }
     } else {
+        http_response_code(404);
         echo json_encode(array(
             "success" => false,
-            "message" => "User not found."
+            "message" => "No user exists with this email ID."
         ));
     }
 } else {
-    echo json_encode(array(
+    http_response_code(400);
+   echo json_encode(array(
         "success" => false,
         "message" => "Email and password are required."
     ));
