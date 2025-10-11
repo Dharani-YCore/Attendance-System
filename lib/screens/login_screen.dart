@@ -89,12 +89,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 60),
                 
-                // User Name Field
+                // Email Field
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'User Name:',
+                      'Email:',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
@@ -117,13 +117,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: TextField(
                         controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
                         decoration: const InputDecoration(
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 16,
                           ),
-                          hintText: 'Enter your username',
+                          hintText: 'Enter your email',
                           hintStyle: TextStyle(color: Colors.grey),
                         ),
                       ),
