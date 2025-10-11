@@ -9,6 +9,7 @@ class SetPasswordScreen extends StatefulWidget {
 }
 
 class _SetPasswordScreenState extends State<SetPasswordScreen> {
+  final TextEditingController _oldPasswordController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
@@ -74,22 +75,28 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   }
 
   void _handleSetPassword() async {
+    final oldPassword = _oldPasswordController.text.trim();
     final newPassword = _newPasswordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
     final email = ModalRoute.of(context)?.settings.arguments as String?;
 
-    if (newPassword.isEmpty || confirmPassword.isEmpty) {
+    if (oldPassword.isEmpty || newPassword.isEmpty || confirmPassword.isEmpty) {
       _showMessage('Please fill in all fields', isError: true);
       return;
     }
 
     if (newPassword != confirmPassword) {
-      _showMessage('Passwords do not match', isError: true);
+      _showMessage('New password and confirm password do not match', isError: true);
       return;
     }
 
     if (newPassword.length < 6) {
       _showMessage('Password must be at least 6 characters', isError: true);
+      return;
+    }
+
+    if (oldPassword == newPassword) {
+      _showMessage('New password must be different from old password', isError: true);
       return;
     }
 
@@ -103,10 +110,16 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     });
 
     try {
-      final result = await ApiService.setPassword(email, newPassword);
+      final result = await ApiService.setPassword(email, oldPassword, newPassword, confirmPassword);
       
       if (result['success']) {
-        _showSuccessDialog(context, email);
+        // Password changed successfully, navigate to dashboard
+        if (result['token'] != null) {
+          // Token is already saved by ApiService, navigate to dashboard
+          Navigator.pushReplacementNamed(context, '/dashboard');
+        } else {
+          _showSuccessDialog(context, email);
+        }
       } else {
         _showMessage(result['message'], isError: true);
       }
@@ -151,20 +164,23 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
             child: Column(
               children: [
                 const Text(
-                  'Set Password',
+                  'Change Password',
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 20),
                 const Text(
-                  'Please set your password for first-time login',
+                  'Please change your default password for security',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 16, color: Colors.black54),
                 ),
                 const SizedBox(height: 40),
+                _buildTextField('Old Password', 
+                    controller: _oldPasswordController, isPassword: true),
+                const SizedBox(height: 20),
                 _buildTextField('New Password', 
                     controller: _newPasswordController, isPassword: true),
                 const SizedBox(height: 20),
-                _buildTextField('Confirm Password', 
+                _buildTextField('Confirm New Password', 
                     controller: _confirmPasswordController, isPassword: true),
                 const SizedBox(height: 30),
                 SizedBox(
@@ -188,7 +204,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                             ),
                           )
                         : const Text(
-                            'Set Password',
+                            'Change Password',
                             style: TextStyle(fontSize: 16, color: Colors.white),
                           ),
                   ),
