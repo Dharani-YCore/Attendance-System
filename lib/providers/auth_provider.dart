@@ -106,15 +106,20 @@ class AuthProvider with ChangeNotifier {
   }
 
   // Set password method
-  Future<bool> setPassword(String email, String password) async {
+  Future<bool> setPassword(String email, String oldPassword, String newPassword, String confirmPassword) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final result = await ApiService.setPassword(email, password);
+      final result = await ApiService.setPassword(email, oldPassword, newPassword, confirmPassword);
       
       if (result['success']) {
+        // If token is returned, store user data
+        if (result['token'] != null && result['user'] != null) {
+          _currentUser = result['user'];
+          _isLoggedIn = true;
+        }
         _errorMessage = null;
         notifyListeners();
         return true;

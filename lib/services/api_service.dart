@@ -5,22 +5,20 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  // Update this URL to match your backend server
-  static const String baseUrl = 'http://localhost/Attendance-System-main/backend';
   // Use Android emulator loopback when running on Android; use localhost for Web/others
   static String get baseUrl {
     if (kIsWeb) {
       // When running Flutter Web on the same PC as XAMPP
-      return 'http://localhost/Attendance-System/backend';
+      return 'http://localhost/Attendance-System-main/backend';
     }
     try {
       if (Platform.isAndroid) {
-        return 'http://10.0.2.2/Attendance-System/backend';
+        return 'http://10.0.2.2/Attendance-System-main/backend';
       }
     } catch (_) {
       // Platform may be unavailable; fall back to localhost
     }
-    return 'http://localhost/Attendance-System/backend';
+    return 'http://localhost/Attendance-System-main/backend';
   }
   
   // Authentication endpoints
@@ -102,19 +100,39 @@ class ApiService {
     }
   }
   
-  static Future<Map<String, dynamic>> setPassword(String email, String password) async {
+  static Future<Map<String, dynamic>> setPassword(
+    String email, 
+    String oldPassword, 
+    String newPassword, 
+    String confirmPassword
+  ) async {
     try {
+      print('🔗 API: Setting password for $email');
       final response = await http.post(
         Uri.parse('$baseUrl/auth/set_password.php'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': email,
-          'password': password,
+          'old_password': oldPassword,
+          'new_password': newPassword,
+          'confirm_password': confirmPassword,
         }),
       );
       
+      print('📡 API: Response status: ${response.statusCode}');
+      print('📄 API: Response body: ${response.body}');
+      
       if (response.statusCode == 200) {
-        return json.decode(response.body);
+        final data = json.decode(response.body);
+        
+        // Store token and user data if password change successful and token provided
+        if (data['success'] == true && data['token'] != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('token', data['token']);
+          await prefs.setString('user', json.encode(data['user']));
+        }
+        
+        return data;
       } else {
         return {
           'success': false,
@@ -122,6 +140,7 @@ class ApiService {
         };
       }
     } catch (e) {
+      print('❌ API: Error in setPassword: $e');
       return {
         'success': false,
         'message': 'Network error: $e'
