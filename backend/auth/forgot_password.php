@@ -36,31 +36,37 @@ if (!empty($data->email)) {
         if ($stmt->execute()) {
             // Send OTP via email
             $emailResult = $emailService->sendOTP($data->email, $row['name'], $otp);
-            
+
             if ($emailResult['success']) {
+                http_response_code(200);
                 echo json_encode(array(
                     "success" => true,
-                    "message" => "OTP sent to your email address successfully."
+                    "message" => "OTP sent to your email address."
                 ));
             } else {
+                http_response_code(500);
                 echo json_encode(array(
                     "success" => false,
-                    "message" => "Failed to send OTP email: " . $emailResult['message']
+                    "message" => "Unable to send OTP. Please try again later.",
+                    "error" => $emailResult['message'] // For debugging
                 ));
             }
         } else {
+            http_response_code(500);
             echo json_encode(array(
                 "success" => false,
-                "message" => "Failed to generate OTP."
+                "message" => "Unable to store OTP."
             ));
         }
     } else {
+        http_response_code(404);
         echo json_encode(array(
             "success" => false,
-            "message" => "User not found."
+            "message" => "User with this email does not exist."
         ));
     }
 } else {
+    http_response_code(400);
     echo json_encode(array(
         "success" => false,
         "message" => "Email is required."
