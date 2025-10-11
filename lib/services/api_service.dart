@@ -37,23 +37,17 @@ class ApiService {
       print('📡 API: Response status: ${response.statusCode}');
       print('📄 API: Response body: ${response.body}');
       
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        
-        // Store token and user data if login successful
-        if (data['success'] == true && data['token'] != null) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('token', data['token']);
-          await prefs.setString('user', json.encode(data['user']));
-        }
-        
-        return data;
-      } else {
-        return {
-          'success': false,
-          'message': 'Server error: ${response.statusCode}'
-        };
+      // Parse response body regardless of status code
+      final data = json.decode(response.body);
+      
+      // Store token and user data if login successful
+      if (response.statusCode == 200 && data['success'] == true && data['token'] != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('token', data['token']);
+        await prefs.setString('user', json.encode(data['user']));
       }
+      
+      return data;
     } catch (e) {
       print('❌ API: Error in login: $e');
       return {
