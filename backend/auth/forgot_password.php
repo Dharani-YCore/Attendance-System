@@ -1,9 +1,15 @@
 <?php
+// Set CORS headers
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json; charset=UTF-8");
-header("Access-Control-Allow-Methods: POST");
+header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Max-Age: 3600");
-header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With, X-Requested-By");
+header("Access-Control-Allow-Credentials: true");
+
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
 include_once '../config/database.php';
 include_once '../services/email_service.php';
@@ -80,9 +86,9 @@ if ($num > 0) {
     $query = "INSERT INTO password_resets (email, otp, expires_at) VALUES (?, ?, ?)
               ON DUPLICATE KEY UPDATE otp = VALUES(otp), expires_at = VALUES(expires_at), created_at = NOW()";
     $stmt = $db->prepare($query);
-    $stmt->bindValue(1, $email);
-    $stmt->bindValue(2, $otp);
-    $stmt->bindValue(3, $expiry);
+    $stmt->bindParam(1, $email, PDO::PARAM_STR);
+    $stmt->bindParam(2, $otp, PDO::PARAM_STR);
+    $stmt->bindParam(3, $expiry, PDO::PARAM_STR);
 
     if ($stmt->execute()) {
         // Send OTP via email
