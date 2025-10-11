@@ -5,11 +5,15 @@ class EmailService {
     private $apiKey;
     private $fromEmail;
     private $fromName;
+    private $apiBase;
 
     public function __construct() {
         $this->apiKey = env('SENDGRID_API_KEY');
         $this->fromEmail = env('SENDGRID_FROM_EMAIL', 'noreply@yourdomain.com');
         $this->fromName = env('SENDGRID_FROM_NAME', 'Smart Attendance System');
+        $region = strtoupper(env('SENDGRID_REGION', 'US'));
+        // Support EU data residency if configured
+        $this->apiBase = ($region === 'EU') ? 'https://api.eu.sendgrid.com' : 'https://api.sendgrid.com';
     }
 
     public function sendOTP($toEmail, $toName, $otp) {
@@ -79,7 +83,7 @@ class EmailService {
     private function sendEmail($emailData) {
         $ch = curl_init();
 
-        curl_setopt($ch, CURLOPT_URL, 'https://api.sendgrid.com/v3/mail/send');
+        curl_setopt($ch, CURLOPT_URL, $this->apiBase . '/v3/mail/send');
         curl_setopt($ch, CURLOPT_POST, 1);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($emailData));
         curl_setopt($ch, CURLOPT_HTTPHEADER, [

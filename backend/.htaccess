@@ -1,5 +1,6 @@
 RewriteEngine On
 
+
 # Security headers
 Header always set X-Content-Type-Options nosniff
 Header always set X-Frame-Options DENY
