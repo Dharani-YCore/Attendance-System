@@ -1,26 +1,5 @@
 <?php
-<<<<<<< HEAD
-// --- CORS & CONTENT-TYPE HEADERS ---
-// Allow requests from any origin. For production, you might want to restrict this to your app's domain.
-header("Access-Control-Allow-Origin: *");
-// Set content type to JSON
-header("Content-Type: application/json; charset=UTF-8");
-// Allow common HTTP methods.
-header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
-// Set max age for pre-flight cache
-header("Access-Control-Max-Age: 3600");
-// Allow specific headers.
-header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
-=======
-header("Access-Control-Allow-Origin: *");
-header("Content-Type: application/json; charset=UTF-8");
-header("Access-Control-Allow-Methods: POST");
-header("Access-Control-Max-Age: 3600");
-header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
 
-include_once '../config/database.php';
-include_once '../config/jwt_utils.php';
->>>>>>> 75d7f8e (Login)
 
 // Handle pre-flight requests (OPTIONS method)
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
