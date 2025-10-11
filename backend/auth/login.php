@@ -1,4 +1,5 @@
 <?php
+
 // --- CORS & CONTENT-TYPE HEADERS ---
 // Allow requests from any origin. For production, you might want to restrict this to your app's domain.
 header("Access-Control-Allow-Origin: *");
