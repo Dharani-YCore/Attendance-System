@@ -1,4 +1,5 @@
 <?php
+include_once '../cors.php';
 include_once '../config/database.php';
 include_once '../services/email_service.php';
 

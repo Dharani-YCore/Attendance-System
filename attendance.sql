@@ -8,6 +8,7 @@ CREATE TABLE users (
     name VARCHAR(100) NOT NULL,
     email VARCHAR(150) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL, -- store hashed password (bcrypt/argon2)
+    is_first_login BOOLEAN DEFAULT TRUE, -- track if user needs to change default password
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -48,3 +49,11 @@ CREATE TABLE password_resets (
 CREATE INDEX idx_user_attendance ON attendance(user_id, date);
 CREATE INDEX idx_user_reports ON reports(user_id, report_date);
 CREATE INDEX idx_password_resets_email ON password_resets(email, expires_at);
+
+-- ==========================
+-- ALTER TABLE: Add is_first_login column to users table
+-- ==========================
+-- This column tracks whether a user needs to change their default password
+-- Default value is TRUE (1) for new users or users with default passwords
+ALTER TABLE users 
+ADD COLUMN is_first_login BOOLEAN DEFAULT TRUE AFTER password;
