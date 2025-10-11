@@ -1,5 +1,4 @@
 <?php
-<<<<<<< HEAD
 // --- CORS & CONTENT-TYPE HEADERS ---
 // Allow requests from any origin. For production, you might want to restrict this to your app's domain.
 header("Access-Control-Allow-Origin: *");
@@ -11,7 +10,6 @@ header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
 header("Access-Control-Max-Age: 3600");
 // Allow specific headers.
 header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
-=======
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json; charset=UTF-8");
 header("Access-Control-Allow-Methods: POST");
@@ -20,7 +18,6 @@ header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers
 
 include_once '../config/database.php';
 include_once '../config/jwt_utils.php';
->>>>>>> 75d7f8e (Login)
 
 // Handle pre-flight requests (OPTIONS method)
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
@@ -42,6 +39,8 @@ $data = json_decode(file_get_contents("php://input"));
 
 // Make sure data is not empty
 if (!empty($data->email) && !empty($data->password)) {
+    // Check if user exists (include is_first_login field)
+    $query = "SELECT id, name, email, password, is_first_login FROM users WHERE email = ? LIMIT 0,1";
     $query = "SELECT id, name, email, password FROM users WHERE email = ? LIMIT 0,1";
     
     $stmt = $db->prepare($query);
@@ -53,6 +52,36 @@ if (!empty($data->email) && !empty($data->password)) {
     if ($num > 0) {
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         
+        // Check if password is set (not null)
+        if ($row['password'] === null) {
+            echo json_encode(array(
+                "success" => false,
+                "message" => "Password not set. Please set your password first.",
+                "action" => "set_password"
+            ));
+        } else if (password_verify($data->password, $row['password'])) {
+            // Check if this is first-time login
+            if ($row['is_first_login'] == 1) {
+                echo json_encode(array(
+                    "success" => false,
+                    "message" => "Please change your default password.",
+                    "action" => "set_password"
+                ));
+            } else {
+                // Generate JWT token
+                $token = generateJWT($row['id'], $row['email']);
+                
+                echo json_encode(array(
+                    "success" => true,
+                    "message" => "Login successful.",
+                    "token" => $token,
+                    "user" => array(
+                        "id" => $row['id'],
+                        "name" => $row['name'],
+                        "email" => $row['email']
+                    )
+                ));
+            }
         $id = $row['id'];
         $name = $row['name'];
         $email = $row['email'];
