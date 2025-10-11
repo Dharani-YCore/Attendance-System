@@ -100,19 +100,39 @@ class ApiService {
     }
   }
   
-  static Future<Map<String, dynamic>> setPassword(String email, String password) async {
+  static Future<Map<String, dynamic>> setPassword(
+    String email, 
+    String oldPassword, 
+    String newPassword, 
+    String confirmPassword
+  ) async {
     try {
+      print('🔗 API: Setting password for $email');
       final response = await http.post(
         Uri.parse('$baseUrl/auth/set_password.php'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': email,
-          'password': password,
+          'old_password': oldPassword,
+          'new_password': newPassword,
+          'confirm_password': confirmPassword,
         }),
       );
       
+      print('📡 API: Response status: ${response.statusCode}');
+      print('📄 API: Response body: ${response.body}');
+      
       if (response.statusCode == 200) {
-        return json.decode(response.body);
+        final data = json.decode(response.body);
+        
+        // Store token and user data if password change successful and token provided
+        if (data['success'] == true && data['token'] != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('token', data['token']);
+          await prefs.setString('user', json.encode(data['user']));
+        }
+        
+        return data;
       } else {
         return {
           'success': false,
@@ -120,6 +140,7 @@ class ApiService {
         };
       }
     } catch (e) {
+      print('❌ API: Error in setPassword: $e');
       return {
         'success': false,
         'message': 'Network error: $e'
