@@ -14,6 +14,12 @@ class AuthProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String? get action => _action;
+  
+  // Clear action and notify listeners (used after navigation)
+  void clearAction() {
+    _action = null;
+    notifyListeners();
+  }
 
   // Initialize auth state
   Future<void> initializeAuth() async {
@@ -60,7 +66,11 @@ class AuthProvider with ChangeNotifier {
         print('❌ AuthProvider: Login failed with message: ${result['message']}');
         _errorMessage = result['message'];
         _action = result['action'];
-        notifyListeners();
+        // Don't notify listeners yet if we need to navigate
+        // The login screen will handle navigation, then we'll notify
+        if (result['action'] != 'set_password') {
+          notifyListeners();
+        }
         return false;
       }
     } catch (e) {
@@ -71,7 +81,10 @@ class AuthProvider with ChangeNotifier {
     } finally {
       print('🏁 AuthProvider: Login process completed');
       _isLoading = false;
-      notifyListeners();
+      // Only notify if we're not navigating to set_password
+      if (_action != 'set_password') {
+        notifyListeners();
+      }
     }
   }
 

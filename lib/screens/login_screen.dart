@@ -30,9 +30,15 @@ class _LoginScreenState extends State<LoginScreen> {
     
     print('📊 Login result - Success: $success');
     print('📝 Error message: ${authProvider.errorMessage}');
+    print('🔍 Widget mounted status: $mounted');
     
     // Check if widget is still mounted before using context
-    if (!mounted) return;
+    if (!mounted) {
+      print('⚠️ Widget not mounted, returning early!');
+      return;
+    }
+    
+    print('✅ Widget is mounted, proceeding with navigation...');
     
     if (success) {
       print('✅ Login successful - navigating to dashboard');
@@ -40,11 +46,17 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.pushReplacementNamed(context, '/dashboard');
     } else {
       print('❌ Login failed - checking error message');
+      print('🔍 authProvider.action value: "${authProvider.action}"');
+      print('🔍 Checking if action == "set_password": ${authProvider.action == 'set_password'}');
+      
       if (authProvider.action == 'set_password') {
-        print('🔑 Redirecting to set password page');
-        Navigator.pushNamed(context, '/setPassword', arguments: email);
+        print('🔑 Redirecting to set password page with email: $email');
+        Navigator.pushNamed(context, '/setPassword', arguments: email).then((_) {
+          // Clear action and update UI after navigation completes
+          authProvider.clearAction();
+        });
       } else {
-        print('🚨 Showing error message: ${authProvider.errorMessage}');
+        print('🚨 Action is not set_password, showing error message: ${authProvider.errorMessage}');
         _showMessage(authProvider.errorMessage ?? 'Login failed', isError: true);
       }
     }

@@ -51,7 +51,23 @@ if (!empty($data->email) && !empty($data->password)) {
                 "message" => "Password not set. Please set your password first.",
                 "action" => "set_password"
             ));
-        } else if (password_verify($data->password, $row['password'])) {
+        } else {
+            // ⚠️ DEVELOPMENT MODE: Allow plain text password comparison for testing
+            // TODO: REMOVE THIS IN PRODUCTION - Only use password_verify()
+            $passwordMatch = false;
+            
+            // Try hashed password first (secure method)
+            if (password_verify($data->password, $row['password'])) {
+                $passwordMatch = true;
+            } 
+            // DEVELOPMENT ONLY: Also check plain text (for testing with unhashed passwords)
+            else if ($data->password === $row['password']) {
+                $passwordMatch = true;
+                // Warning: This is insecure - hash this password!
+                error_log("WARNING: Plain text password detected for user: " . $row['email']);
+            }
+            
+            if ($passwordMatch) {
             // Check if this is first-time login
             if (isset($row['is_first_login']) && $row['is_first_login'] == 1) {
                 http_response_code(200);
@@ -76,12 +92,13 @@ if (!empty($data->email) && !empty($data->password)) {
                     )
                 ));
             }
-        } else {
-            http_response_code(401);
-            echo json_encode(array(
-                "success" => false,
-                "message" => "Invalid password."
-            ));
+            } else {
+                http_response_code(401);
+                echo json_encode(array(
+                    "success" => false,
+                    "message" => "Invalid password."
+                ));
+            }
         }
     } else {
         http_response_code(404);
