@@ -38,13 +38,13 @@ if (!empty($data->name) && !empty($data->email) && !empty($data->password)) {
         if ($stmt->execute()) {
             $user_id = $db->lastInsertId();
             
-            // Send welcome email
-            $emailService->sendWelcomeEmail($data->email, $data->name);
+            // Send welcome email and check result
+            $emailResult = $emailService->sendWelcomeEmail($data->email, $data->name);
             
             // Generate JWT token
             $token = generateJWT($user_id, $data->email);
             
-            echo json_encode(array(
+            $response = array(
                 "success" => true,
                 "message" => "User registered successfully.",
                 "token" => $token,
@@ -53,7 +53,14 @@ if (!empty($data->name) && !empty($data->email) && !empty($data->password)) {
                     "name" => $data->name,
                     "email" => $data->email
                 )
-            ));
+            );
+
+            if (!$emailResult['success']) {
+                // If email fails, registration is still successful, but we should add a note.
+                $response['message'] .= " (Could not send welcome email: " . $emailResult['message'] . ")";
+            }
+
+            echo json_encode($response);
         } else {
             echo json_encode(array(
                 "success" => false,
