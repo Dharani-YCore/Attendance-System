@@ -52,7 +52,7 @@ class AttendanceProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final result = await ApiService.getAttendanceHistory(userId, limit: limit);
+      final result = await ApiService.getAttendanceHistory(userId, limit: limit ?? 30);
       
       if (result['success']) {
         _attendanceHistory = result['data'];
