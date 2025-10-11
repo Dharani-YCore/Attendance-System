@@ -87,16 +87,27 @@ class EmailService {
             'Content-Type: application/json'
         ]);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        
+        // It's better to point to a certificate bundle than to disable verification
+        // but for local development, this is a common workaround.
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
 
         $response = curl_exec($ch);
+        
+        if (curl_errno($ch)) {
+            $error_msg = curl_error($ch);
+            curl_close($ch);
+            return ['success' => false, 'message' => 'cURL Error: ' . $error_msg];
+        }
+
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
         if ($httpCode >= 200 && $httpCode < 300) {
             return ['success' => true, 'message' => 'Email sent successfully'];
         } else {
-            return ['success' => false, 'message' => 'Failed to send email', 'response' => $response];
+            return ['success' => false, 'message' => 'Failed to send email. HTTP Status: ' . $httpCode, 'response' => $response];
         }
     }
 
