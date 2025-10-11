@@ -5,22 +5,20 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  // Update this URL to match your backend server
-  static const String baseUrl = 'http://localhost/Attendance-System-main/backend';
   // Use Android emulator loopback when running on Android; use localhost for Web/others
   static String get baseUrl {
     if (kIsWeb) {
       // When running Flutter Web on the same PC as XAMPP
-      return 'http://localhost/Attendance-System/backend';
+      return 'http://localhost/Attendance-System-main/backend';
     }
     try {
       if (Platform.isAndroid) {
-        return 'http://10.0.2.2/Attendance-System/backend';
+        return 'http://10.0.2.2/Attendance-System-main/backend';
       }
     } catch (_) {
       // Platform may be unavailable; fall back to localhost
     }
-    return 'http://localhost/Attendance-System/backend';
+    return 'http://localhost/Attendance-System-main/backend';
   }
   
   // Authentication endpoints
