@@ -108,18 +108,25 @@ class ApiService {
 
   static Future<Map<String, dynamic>> forgotPassword(String email) async {
     try {
+      final url = '$baseUrl/auth/forgot_password.php';
+      print('🔄 Forgot password for: $email');
+      print('🌐 API URL: $url');
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/forgot_password.php'),
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email}),
       );
 
+      print('📡 Response status: ${response.statusCode}');
+      print('📄 Response body: ${response.body}');
+
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        return {'success': false, 'message': 'Server error'};
+        return {'success': false, 'message': 'Server error: ${response.statusCode}'};
       }
     } catch (e) {
+      print('🚨 Forgot password connection error: $e');
       return {'success': false, 'message': 'Connection error: $e'};
     }
   }

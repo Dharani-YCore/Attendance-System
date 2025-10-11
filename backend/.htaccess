@@ -1,8 +1,7 @@
 RewriteEngine On
 
-# Handle CORS preflight requests
-RewriteCond %{REQUEST_METHOD} OPTIONS
-RewriteRule ^(.*)$ $1 [R=200,L]
+# Let PHP scripts handle OPTIONS (preflight) themselves.
+# Removing redirect on OPTIONS to avoid CORS issues.
 
 # Add CORS headers
 Header always set Access-Control-Allow-Origin "*"
