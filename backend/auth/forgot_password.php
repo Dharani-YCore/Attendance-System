@@ -25,9 +25,9 @@ if (!empty($data->email)) {
         $otp = sprintf("%04d", mt_rand(1000, 9999));
         $expiry = date('Y-m-d H:i:s', time() + 600); // 10 minutes from now
         
-        // Store OTP in database
-        $query = "INSERT INTO password_resets (email, otp, expires_at) VALUES (?, ?, ?) 
-                  ON DUPLICATE KEY UPDATE otp = VALUES(otp), expires_at = VALUES(expires_at), created_at = NOW()";
+        // Store OTP in database (reset used=FALSE for new OTP)
+        $query = "INSERT INTO password_resets (email, otp, expires_at, used) VALUES (?, ?, ?, FALSE)
+                  ON DUPLICATE KEY UPDATE otp = VALUES(otp), expires_at = VALUES(expires_at), used = FALSE, created_at = NOW()";
         $stmt = $db->prepare($query);
         $stmt->bindParam(1, $data->email);
         $stmt->bindParam(2, $otp);

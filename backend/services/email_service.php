@@ -5,85 +5,96 @@ class EmailService {
     private $apiKey;
     private $fromEmail;
     private $fromName;
+    private $smtpHost;
+    private $smtpPort;
+    private $smtpSecurity;
+    private $smtpUsername;
+    private $smtpPassword;
 
     public function __construct() {
-        $this->apiKey = env('SENDGRID_API_KEY');
-        $this->fromEmail = env('SENDGRID_FROM_EMAIL', 'noreply@yourdomain.com');
-        $this->fromName = env('SENDGRID_FROM_NAME', 'Smart Attendance System');
+        $this->apiKey = env('BREVO_API_KEY');
+        $this->fromEmail = env('BREVO_FROM_EMAIL', 'noreply@yourdomain.com');
+        $this->fromName = env('BREVO_FROM_NAME', 'Smart Attendance System');
+        // SMTP (fallback)
+        $this->smtpHost = env('BREVO_SMTP_HOST', 'smtp-relay.brevo.com');
+        $this->smtpPort = (int)env('BREVO_SMTP_PORT', 587);
+        $this->smtpSecurity = strtolower(env('BREVO_SMTP_SECURITY', 'tls'));
+        $this->smtpUsername = env('BREVO_SMTP_USERNAME');
+        $this->smtpPassword = env('BREVO_SMTP_PASSWORD');
     }
 
     public function sendOTP($toEmail, $toName, $otp) {
-        if (!$this->apiKey) {
-            return ['success' => false, 'message' => 'SendGrid API key not configured'];
-        }
 
-        $emailData = [
-            'personalizations' => [
-                [
-                    'to' => [
-                        [
-                            'email' => $toEmail,
-                            'name' => $toName
-                        ]
-                    ],
-                    'subject' => 'Your OTP for Password Recovery'
-                ]
-            ],
-            'from' => [
+        $payload = [
+            'sender' => [
                 'email' => $this->fromEmail,
-                'name' => $this->fromName
+                'name'  => $this->fromName,
             ],
-            'content' => [
-                [
-                    'type' => 'text/html',
-                    'value' => $this->getOTPEmailTemplate($otp, $toName)
-                ]
-            ]
+            'to' => [[
+                'email' => $toEmail,
+                'name'  => $toName,
+            ]],
+            'subject' => 'Your OTP for Password Recovery',
+            'htmlContent' => $this->getOTPEmailTemplate($otp, $toName),
         ];
 
-        return $this->sendEmail($emailData);
+        // Try Brevo REST API first
+        if ($this->apiKey) {
+            $apiResult = $this->sendEmailBrevo($payload);
+            if ($apiResult['success'] === true) {
+                return $apiResult;
+            }
+            // If unauthorized or forbidden, fall back to SMTP if configured
+            if (isset($apiResult['http']) && in_array($apiResult['http'], [401, 403])) {
+                $smtpResult = $this->trySMTP($toEmail, $toName, 'Your OTP for Password Recovery', $this->getOTPEmailTemplate($otp, $toName));
+                if ($smtpResult['success'] === true) return $smtpResult;
+                return $smtpResult; // return SMTP error details if fallback also fails
+            }
+            return $apiResult;
+        }
+        // No API key -> try SMTP
+        return $this->trySMTP($toEmail, $toName, 'Your OTP for Password Recovery', $this->getOTPEmailTemplate($otp, $toName));
     }
 
     public function sendWelcomeEmail($toEmail, $toName) {
-        if (!$this->apiKey) {
-            return ['success' => false, 'message' => 'SendGrid API key not configured'];
-        }
 
-        $emailData = [
-            'personalizations' => [
-                [
-                    'to' => [
-                        [
-                            'email' => $toEmail,
-                            'name' => $toName
-                        ]
-                    ],
-                    'subject' => 'Welcome to Smart Attendance System'
-                ]
-            ],
-            'from' => [
+        $payload = [
+            'sender' => [
                 'email' => $this->fromEmail,
-                'name' => $this->fromName
+                'name'  => $this->fromName,
             ],
-            'content' => [
-                [
-                    'type' => 'text/html',
-                    'value' => $this->getWelcomeEmailTemplate($toName)
-                ]
-            ]
+            'to' => [[
+                'email' => $toEmail,
+                'name'  => $toName,
+            ]],
+            'subject' => 'Welcome to Smart Attendance System',
+            'htmlContent' => $this->getWelcomeEmailTemplate($toName),
         ];
 
-        return $this->sendEmail($emailData);
+        if ($this->apiKey) {
+            $apiResult = $this->sendEmailBrevo($payload);
+            if ($apiResult['success'] === true) {
+                return $apiResult;
+            }
+            if (isset($apiResult['http']) && in_array($apiResult['http'], [401, 403])) {
+                $smtpResult = $this->trySMTP($toEmail, $toName, 'Welcome to Smart Attendance System', $this->getWelcomeEmailTemplate($toName));
+                if ($smtpResult['success'] === true) return $smtpResult;
+                return $smtpResult;
+            }
+            return $apiResult;
+        }
+        return $this->trySMTP($toEmail, $toName, 'Welcome to Smart Attendance System', $this->getWelcomeEmailTemplate($toName));
     }
 
-    private function sendEmail($emailData) {
+    private function sendEmailBrevo($emailData) {
         $ch = curl_init();
 
-        curl_setopt($ch, CURLOPT_URL, 'https://api.sendgrid.com/v3/mail/send');
+        curl_setopt($ch, CURLOPT_URL, 'https://api.brevo.com/v3/smtp/email');
         curl_setopt($ch, CURLOPT_POST, 1);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($emailData));
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Authorization: Bearer ' . $this->apiKey,
+            'api-key: ' . $this->apiKey,
+            'accept: application/json',
             'Content-Type: application/json'
         ]);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -107,8 +118,127 @@ class EmailService {
         if ($httpCode >= 200 && $httpCode < 300) {
             return ['success' => true, 'message' => 'Email sent successfully'];
         } else {
-            return ['success' => false, 'message' => 'Failed to send email. HTTP Status: ' . $httpCode, 'response' => $response];
+            return ['success' => false, 'message' => 'Failed to send email. HTTP Status: ' . $httpCode, 'http' => $httpCode, 'response' => $response];
         }
+    }
+
+    private function trySMTP($toEmail, $toName, $subject, $html) {
+        if (!$this->smtpHost || !$this->smtpPort || !$this->smtpUsername || !$this->smtpPassword) {
+            return ['success' => false, 'message' => 'SMTP configuration missing'];
+        }
+
+        return $this->sendEmailSMTP($toEmail, $toName, $subject, $html);
+    }
+
+    private function sendEmailSMTP($toEmail, $toName, $subject, $html) {
+        $timeout = 30;
+        $errno = 0; $errstr = '';
+        $host = $this->smtpHost;
+        if ($this->smtpSecurity === 'ssl') {
+            $host = 'ssl://' . $host;
+        }
+        $fp = fsockopen($host, $this->smtpPort, $errno, $errstr, $timeout);
+        if (!$fp) {
+            return ['success' => false, 'message' => 'SMTP connect failed: ' . $errstr];
+        }
+
+        $read = function() use ($fp) {
+            $data = '';
+            while ($str = fgets($fp, 515)) {
+                $data .= $str;
+                if (isset($str[3]) && $str[3] === ' ') break;
+            }
+            return $data;
+        };
+        $write = function($cmd) use ($fp) { fwrite($fp, $cmd . "\r\n"); };
+
+        $resp = $read();
+        if (strpos($resp, '220') !== 0) return ['success' => false, 'message' => 'SMTP banner error: ' . trim($resp)];
+
+        $hostName = gethostname() ?: 'localhost';
+        $write('EHLO ' . $hostName);
+        $resp = $read();
+        if (strpos($resp, '250') !== 0) return ['success' => false, 'message' => 'EHLO failed: ' . trim($resp)];
+
+        if ($this->smtpSecurity === 'tls') {
+            $write('STARTTLS');
+            $resp = $read();
+            if (strpos($resp, '220') !== 0) return ['success' => false, 'message' => 'STARTTLS failed: ' . trim($resp)];
+            if (!stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT)) {
+                return ['success' => false, 'message' => 'TLS handshake failed'];
+            }
+            $write('EHLO ' . $hostName);
+            $resp = $read();
+            if (strpos($resp, '250') !== 0) return ['success' => false, 'message' => 'EHLO after TLS failed: ' . trim($resp)];
+        }
+
+        // AUTH LOGIN with fallback to PLAIN
+        $write('AUTH LOGIN');
+        $resp = $read();
+        if (strpos($resp, '334') !== 0) {
+            $plain = base64_encode("\0" . $this->smtpUsername . "\0" . $this->smtpPassword);
+            $write('AUTH PLAIN ' . $plain);
+            $resp = $read();
+            if (strpos($resp, '235') !== 0) return ['success' => false, 'message' => 'AUTH failed: ' . trim($resp)];
+        } else {
+            $write(base64_encode($this->smtpUsername));
+            $resp = $read();
+            if (strpos($resp, '334') !== 0) return ['success' => false, 'message' => 'Username not accepted: ' . trim($resp)];
+            $write(base64_encode($this->smtpPassword));
+            $resp = $read();
+            if (strpos($resp, '235') !== 0) {
+                $plain = base64_encode("\0" . $this->smtpUsername . "\0" . $this->smtpPassword);
+                $write('AUTH PLAIN ' . $plain);
+                $resp = $read();
+                if (strpos($resp, '235') !== 0) return ['success' => false, 'message' => 'Password not accepted: ' . trim($resp)];
+            }
+        }
+
+        $from = $this->fromEmail ?: $this->smtpUsername;
+        $write('MAIL FROM: <' . $from . '>');
+        $resp = $read();
+        if (strpos($resp, '250') !== 0) return ['success' => false, 'message' => 'MAIL FROM failed: ' . trim($resp)];
+
+        $write('RCPT TO: <' . $toEmail . '>');
+        $resp = $read();
+        if (strpos($resp, '250') !== 0 && strpos($resp, '251') !== 0) return ['success' => false, 'message' => 'RCPT TO failed: ' . trim($resp)];
+
+        $write('DATA');
+        $resp = $read();
+        if (strpos($resp, '354') !== 0) return ['success' => false, 'message' => 'DATA not accepted: ' . trim($resp)];
+
+        $headers = [];
+        $headers[] = 'From: ' . $this->encodeAddress($from, $this->fromName);
+        $headers[] = 'To: ' . $this->encodeAddress($toEmail, $toName);
+        $headers[] = 'Subject: ' . $this->encodeHeader($subject);
+        $headers[] = 'MIME-Version: 1.0';
+        $headers[] = 'Content-Type: text/html; charset=UTF-8';
+        $headers[] = 'Content-Transfer-Encoding: base64';
+
+        $body = rtrim(chunk_split(base64_encode($html)));
+        $message = implode("\r\n", $headers) . "\r\n\r\n" . $body . "\r\n.";
+        $write($message);
+        $resp = $read();
+        if (strpos($resp, '250') !== 0) return ['success' => false, 'message' => 'Message not accepted: ' . trim($resp)];
+
+        $write('QUIT');
+        fclose($fp);
+        return ['success' => true, 'message' => 'Email sent successfully'];
+    }
+
+    private function encodeHeader($str) {
+        // Encode non-ASCII in headers
+        if (preg_match('/[^\x20-\x7E]/', $str)) {
+            return '=?UTF-8?B?' . base64_encode($str) . '?=';
+        }
+        return $str;
+    }
+
+    private function encodeAddress($email, $name = null) {
+        if ($name && trim($name) !== '') {
+            return $this->encodeHeader($name) . ' <' . $email . '>';
+        }
+        return '<' . $email . '>';
     }
 
     private function getOTPEmailTemplate($otp, $name) {

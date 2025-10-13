@@ -1,7 +1,47 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 
-class ForgetPasswordScreen extends StatelessWidget {
+class ForgetPasswordScreen extends StatefulWidget {
   const ForgetPasswordScreen({super.key});
+
+  @override
+  State<ForgetPasswordScreen> createState() => _ForgetPasswordScreenState();
+}
+
+class _ForgetPasswordScreenState extends State<ForgetPasswordScreen> {
+  final TextEditingController _emailController = TextEditingController();
+  bool _isLoading = false;
+
+  void _showMessage(BuildContext context, String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : Colors.green,
+      ),
+    );
+  }
+
+  Future<void> _sendOtp(BuildContext context) async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      _showMessage(context, 'Please enter your email', isError: true);
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      final result = await ApiService.forgotPassword(email);
+      if (result['success'] == true) {
+        _showMessage(context, 'OTP sent to $email');
+        Navigator.pushNamed(context, '/verification', arguments: email);
+      } else {
+        _showMessage(context, result['message'] ?? 'Failed to send OTP', isError: true);
+      }
+    } catch (e) {
+      _showMessage(context, 'Network error: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,6 +71,7 @@ class ForgetPasswordScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 40),
                 TextField(
+                  controller: _emailController,
                   decoration: InputDecoration(
                     labelText: 'Enter Email',
                     filled: true,
@@ -50,9 +91,7 @@ class ForgetPasswordScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/verification');
-                  },
+                  onPressed: _isLoading ? null : () => _sendOtp(context),
                   child: const Text(
                     'Send OTP',
                     style: TextStyle(fontSize: 16, color: Colors.black),

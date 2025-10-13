@@ -7,13 +7,20 @@ $db = $database->getConnection();
 // Get posted data
 $data = json_decode(file_get_contents("php://input"));
 
-if (!empty($data->email) && !empty($data->otp)) {
+if (!empty($data->email) && isset($data->otp)) {
+    $email = trim($data->email);
+    // Normalize OTP to 4-digit string (allow leading zeros)
+    $inputOtp = trim((string)$data->otp);
+    if (ctype_digit($inputOtp)) {
+        $inputOtp = sprintf("%04d", (int)$inputOtp);
+    }
+
     // Check if OTP exists and is valid
     $query = "SELECT id, otp, expires_at, used FROM password_resets 
               WHERE email = ? AND used = FALSE 
               ORDER BY created_at DESC LIMIT 1";
     $stmt = $db->prepare($query);
-    $stmt->bindParam(1, $data->email);
+    $stmt->bindParam(1, $email);
     $stmt->execute();
     
     if ($stmt->rowCount() > 0) {
@@ -28,8 +35,8 @@ if (!empty($data->email) && !empty($data->otp)) {
             exit();
         }
         
-        // Verify OTP
-        if ($row['otp'] === $data->otp) {
+        // Verify OTP (string compare)
+        if ((string)$row['otp'] === $inputOtp) {
             // Mark OTP as used
             $updateQuery = "UPDATE password_resets SET used = TRUE WHERE id = ?";
             $updateStmt = $db->prepare($updateQuery);
@@ -39,7 +46,7 @@ if (!empty($data->email) && !empty($data->otp)) {
             echo json_encode(array(
                 "success" => true,
                 "message" => "OTP verified successfully.",
-                "email" => $data->email
+                "email" => $email
             ));
         } else {
             echo json_encode(array(
