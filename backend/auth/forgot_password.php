@@ -86,20 +86,44 @@ if ($num > 0) {
     $query = "INSERT INTO password_resets (email, otp, expires_at) VALUES (?, ?, ?)
               ON DUPLICATE KEY UPDATE otp = VALUES(otp), expires_at = VALUES(expires_at), created_at = NOW()";
     $stmt = $db->prepare($query);
-    $stmt->bindParam(1, $email, PDO::PARAM_STR);
-    $stmt->bindParam(2, $otp, PDO::PARAM_STR);
-    $stmt->bindParam(3, $expiry, PDO::PARAM_STR);
+    $stmt->bindParam(1, $data->email);
+    $stmt->execute();
+    
+    $num = $stmt->rowCount();
+    
+    if ($num > 0) {
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // Generate a random 4-digit OTP
+        $otp = sprintf("%04d", mt_rand(1000, 9999));
+        $expiry = date('Y-m-d H:i:s', time() + 600); // 10 minutes from now
+        
+        // Store OTP in database (reset used=FALSE for new OTP)
+        $query = "INSERT INTO password_resets (email, otp, expires_at, used) VALUES (?, ?, ?, FALSE)
+                  ON DUPLICATE KEY UPDATE otp = VALUES(otp), expires_at = VALUES(expires_at), used = FALSE, created_at = NOW()";
+        $stmt = $db->prepare($query);
+        $stmt->bindParam(1, $data->email);
+        $stmt->bindParam(2, $otp);
+        $stmt->bindParam(3, $expiry);
+        
+        if ($stmt->execute()) {
+            // Send OTP via email
+            $emailResult = $emailService->sendOTP($data->email, $row['name'], $otp);
 
-    if ($stmt->execute()) {
-        // Send OTP via email
-        $emailResult = $emailService->sendOTP($email, $row['name'], $otp);
-
-        if ($emailResult['success']) {
-            http_response_code(200);
-            echo json_encode(array(
-                "success" => true,
-                "message" => "OTP sent to your email address successfully."
-            ));
+            if ($emailResult['success']) {
+                http_response_code(200);
+                echo json_encode(array(
+                    "success" => true,
+                    "message" => "OTP sent to your email address."
+                ));
+            } else {
+                http_response_code(500);
+                echo json_encode(array(
+                    "success" => false,
+                    "message" => "Unable to send OTP. Please try again later.",
+                    "error" => $emailResult['message'] // For debugging
+                ));
+            }
         } else {
             http_response_code(500);
             echo json_encode(array(

@@ -12,6 +12,7 @@ header("Access-Control-Max-Age: 3600");
 // Allow specific headers.
 header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
 
+
 // Handle pre-flight requests (OPTIONS method)
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     http_response_code(200);
@@ -46,6 +47,38 @@ if (!empty($data->email) && !empty($data->password)) {
         
         // Check if password is set (not null)
         if ($row['password'] === null) {
+            http_response_code(401);
+            echo json_encode(array(
+                "success" => false,
+                "message" => "Password not set. Please set your password first.",
+                "action" => "set_password"
+            ));
+        } else if (password_verify($data->password, $row['password'])) {
+            // Check if this is first-time login
+            if (isset($row['is_first_login']) && $row['is_first_login'] == 1) {
+                http_response_code(200);
+                echo json_encode(array(
+                    "success" => false,
+                    "message" => "Please change your default password.",
+                    "action" => "set_password"
+                ));
+            } else {
+                // Generate JWT token
+                $token = generateJWT($row['id'], $row['email']);
+                
+                http_response_code(200);
+                echo json_encode(array(
+                    "success" => true,
+                    "message" => "Login successful.",
+                    "token" => $token,
+                    "user" => array(
+                        "id" => $row['id'],
+                        "name" => $row['name'],
+                        "email" => $row['email']
+                    )
+                ));
+            }
+        } else {
             http_response_code(401);
             echo json_encode(array(
                 "success" => false,
