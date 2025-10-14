@@ -11,15 +11,25 @@ class DailyReportScreen extends StatefulWidget {
 
 class _DailyReportScreenState extends State<DailyReportScreen> {
   bool isLoading = true;
-  Map<String, dynamic>? todayAttendance;
+  Map<String, dynamic>? attendanceData;
+  DateTime selectedDate = DateTime.now();
+  bool _initialized = false;
 
   @override
-  void initState() {
-    super.initState();
-    _loadTodayAttendance();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      // Get date from route arguments if provided
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      if (args != null && args['date'] != null) {
+        selectedDate = DateTime.parse(args['date']);
+      }
+      _loadAttendance();
+      _initialized = true;
+    }
   }
 
-  void _loadTodayAttendance() async {
+  void _loadAttendance() async {
     setState(() {
       isLoading = true;
     });
@@ -27,15 +37,15 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     try {
       final user = await ApiService.getCurrentUser();
       if (user != null) {
-        final result = await ApiService.getAttendanceHistory(user['id'], limit: 10);
+        final result = await ApiService.getAttendanceHistory(user['id'], limit: 30);
         
         if (result['success']) {
           final records = List<Map<String, dynamic>>.from(result['data'] ?? []);
-          final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+          final targetDate = DateFormat('yyyy-MM-dd').format(selectedDate);
           
-          // Find today's attendance
-          todayAttendance = records.firstWhere(
-            (record) => record['date'] == today,
+          // Find attendance for selected date
+          attendanceData = records.firstWhere(
+            (record) => record['date'] == targetDate,
             orElse: () => {},
           );
           
@@ -51,6 +61,22 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     }
   }
 
+  void _selectDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+
+    if (picked != null && picked != selectedDate) {
+      setState(() {
+        selectedDate = picked;
+      });
+      _loadAttendance();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -62,8 +88,13 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
         foregroundColor: Colors.black,
         actions: [
           IconButton(
+            icon: const Icon(Icons.calendar_month),
+            onPressed: _selectDate,
+            tooltip: 'Select Date',
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadTodayAttendance,
+            onPressed: _loadAttendance,
             tooltip: 'Refresh',
           ),
         ],
@@ -104,16 +135,20 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'Today\'s Attendance',
-                                  style: TextStyle(
+                                Text(
+                                  selectedDate.day == DateTime.now().day &&
+                                  selectedDate.month == DateTime.now().month &&
+                                  selectedDate.year == DateTime.now().year
+                                    ? 'Today\'s Attendance'
+                                    : 'Attendance Details',
+                                  style: const TextStyle(
                                     fontSize: 16,
                                     color: Colors.black54,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  DateFormat('EEEE, MMMM dd, yyyy').format(DateTime.now()),
+                                  DateFormat('EEEE, MMMM dd, yyyy').format(selectedDate),
                                   style: const TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
@@ -129,7 +164,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                   const SizedBox(height: 20),
 
                   // Attendance Status Card
-                  if (todayAttendance != null && todayAttendance!.isNotEmpty) ...[
+                  if (attendanceData != null && attendanceData!.isNotEmpty) ...[
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(20),
@@ -157,21 +192,21 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                           const SizedBox(height: 20),
                           _buildStatusRow(
                             'Check-in Time',
-                            todayAttendance!['time'] ?? 'N/A',
+                            attendanceData!['time'] ?? 'N/A',
                             Icons.access_time,
                             Colors.blue,
                           ),
                           const Divider(height: 30),
                           _buildStatusRow(
                             'Status',
-                            todayAttendance!['status'] ?? 'N/A',
+                            attendanceData!['status'] ?? 'N/A',
                             Icons.check_circle,
-                            _getStatusColor(todayAttendance!['status']),
+                            _getStatusColor(attendanceData!['status']),
                           ),
                           const Divider(height: 30),
                           _buildStatusRow(
                             'Date',
-                            DateFormat('MMMM dd, yyyy').format(DateTime.now()),
+                            DateFormat('MMMM dd, yyyy').format(selectedDate),
                             Icons.calendar_today,
                             Colors.purple,
                           ),

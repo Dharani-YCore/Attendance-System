@@ -79,13 +79,6 @@ if (!empty($data->email) && !empty($data->password)) {
                 ));
             }
         } else {
-            http_response_code(401);
-            echo json_encode(array(
-                "success" => false,
-                "message" => "Password not set. Please set your password first.",
-                "action" => "set_password"
-            ));
-        } else {
             // ⚠️ DEVELOPMENT MODE: Allow plain text password comparison for testing
             // TODO: REMOVE THIS IN PRODUCTION - Only use password_verify()
             $passwordMatch = false;
