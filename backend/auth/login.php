@@ -1,7 +1,5 @@
 <?php
 
-<<<<<<< HEAD
-=======
 // --- CORS & CONTENT-TYPE HEADERS ---
 // Allow requests from any origin. For production, you might want to restrict this to your app's domain.
 header("Access-Control-Allow-Origin: *");
@@ -13,7 +11,6 @@ header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
 header("Access-Control-Max-Age: 3600");
 // Allow specific headers.
 header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
->>>>>>> 8441ef73d839b198016db394aeec0b595186bec3
 
 // Handle pre-flight requests (OPTIONS method)
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {

@@ -11,6 +11,7 @@
         "flutter",
         "http",
         "intl",
+        "mobile_scanner",
         "provider",
         "shared_preferences"
       ],
@@ -42,6 +43,15 @@
         "stream_channel",
         "test_api",
         "vector_math"
+      ]
+    },
+    {
+      "name": "mobile_scanner",
+      "version": "3.5.7",
+      "dependencies": [
+        "flutter",
+        "flutter_web_plugins",
+        "js"
       ]
     },
     {
@@ -192,6 +202,18 @@
         "stream_channel",
         "string_scanner",
         "term_glyph"
+      ]
+    },
+    {
+      "name": "js",
+      "version": "0.7.2",
+      "dependencies": []
+    },
+    {
+      "name": "flutter_web_plugins",
+      "version": "0.0.0",
+      "dependencies": [
+        "flutter"
       ]
     },
     {
@@ -381,13 +403,6 @@
       "dependencies": [
         "meta",
         "path"
-      ]
-    },
-    {
-      "name": "flutter_web_plugins",
-      "version": "0.0.0",
-      "dependencies": [
-        "flutter"
       ]
     },
     {
