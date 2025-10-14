@@ -1,4 +1,5 @@
 <?php
+include_once '../cors.php';
 include_once '../config/database.php';
 
 $database = new Database();

@@ -9,16 +9,16 @@ class ApiService {
   static String get baseUrl {
     if (kIsWeb) {
       // When running Flutter Web on the same PC as XAMPP
-      return 'http://localhost/Attendance-System/backend';
+      return 'http://localhost/Attendance-System-main/backend';
     }
     try {
       if (Platform.isAndroid) {
-        return 'http://10.0.2.2/Attendance-System/backend';
+        return 'http://10.0.2.2/Attendance-System-main/backend';
       }
     } catch (_) {
       // Platform may be unavailable; fall back to localhost
     }
-    return 'http://localhost/Attendance-System/backend';
+    return 'http://localhost/Attendance-System-main/backend';
   }
   
   // Authentication endpoints
@@ -54,6 +54,8 @@ class ApiService {
           'message': 'Server error: ${response.statusCode}'
         };
       }
+      
+      return data;
     } catch (e) {
       print('❌ API: Error in login: $e');
       return {
@@ -111,7 +113,9 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': email,
-          'password': password,
+          'old_password': oldPassword,
+          'new_password': newPassword,
+          'confirm_password': confirmPassword,
         }),
       );
       
@@ -157,10 +161,23 @@ class ApiService {
       }
     } catch (e) {
       print('❌ API: Error in forgotPassword: $e');
+
+      print('📡 Response status: ${response.statusCode}');
+      print('📄 Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        return {'success': false, 'message': 'Server error: ${response.statusCode}'};
+      }
+    } catch (e) {
+      print('🚨 Forgot password connection error: $e');
+      return {'success': false, 'message': 'Connection error: $e'};
       return {
         'success': false,
         'message': 'Network error: $e'
       };
+
     }
   }
   

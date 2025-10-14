@@ -14,6 +14,12 @@ class AuthProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String? get action => _action;
+  
+  // Clear action and notify listeners (used after navigation)
+  void clearAction() {
+    _action = null;
+    notifyListeners();
+  }
 
   // Initialize auth state
   Future<void> initializeAuth() async {
@@ -54,24 +60,25 @@ class AuthProvider with ChangeNotifier {
         _isLoggedIn = true;
         _currentUser = result['user'];
         _errorMessage = null;
+        _isLoading = false;
         notifyListeners();
         return true;
       } else {
         print('❌ AuthProvider: Login failed with message: ${result['message']}');
         _errorMessage = result['message'];
         _action = result['action'];
+        _isLoading = false;
         notifyListeners();
         return false;
       }
     } catch (e) {
       print('🚨 AuthProvider: Exception caught: $e');
       _errorMessage = 'Login failed: $e';
+      _isLoading = false;
       notifyListeners();
       return false;
     } finally {
       print('🏁 AuthProvider: Login process completed');
-      _isLoading = false;
-      notifyListeners();
     }
   }
 
@@ -106,15 +113,20 @@ class AuthProvider with ChangeNotifier {
   }
 
   // Set password method
-  Future<bool> setPassword(String email, String password) async {
+  Future<bool> setPassword(String email, String oldPassword, String newPassword, String confirmPassword) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final result = await ApiService.setPassword(email, password);
+      final result = await ApiService.setPassword(email, oldPassword, newPassword, confirmPassword);
       
       if (result['success']) {
+        // If token is returned, store user data
+        if (result['token'] != null && result['user'] != null) {
+          _currentUser = result['user'];
+          _isLoggedIn = true;
+        }
         _errorMessage = null;
         notifyListeners();
         return true;
