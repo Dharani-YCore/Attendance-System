@@ -12,7 +12,6 @@ import 'screens/dashboard_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/qr_scanner_screen.dart';
 import 'screens/attendance_history_screen.dart';
-import 'screens/reports_screen.dart';
 import 'screens/daily_report_screen.dart';
 import 'screens/monthly_report_screen.dart';
 
@@ -50,7 +49,6 @@ class MyApp extends StatelessWidget {
           '/profile': (context) => const ProfileScreen(),
           '/qr_scanner': (context) => const QRScannerScreen(),
           '/history': (context) => const AttendanceHistoryScreen(),
-          '/reports': (context) => const ReportsScreen(),
           '/daily_report': (context) => const DailyReportScreen(),
           '/monthly_report': (context) => const MonthlyReportScreen(),
         },

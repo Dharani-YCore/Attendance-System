@@ -54,8 +54,6 @@ class ApiService {
           'message': 'Server error: ${response.statusCode}'
         };
       }
-      
-      return data;
     } catch (e) {
       print('❌ API: Error in login: $e');
       return {
@@ -104,7 +102,9 @@ class ApiService {
   
   static Future<Map<String, dynamic>> setPassword(
     String email,
-    String password,
+    String oldPassword,
+    String newPassword,
+    String confirmPassword,
   ) async {
     try {
       print('🔗 API: Setting password for $email');
@@ -139,14 +139,6 @@ class ApiService {
     }
   }
   
- static Future<Map<String, dynamic>> forgotPassword(String email) async {
-  try {
-    final url = '$baseUrl/auth/forgot_password.php';
-    final response = await http.post(
-      Uri.parse(url),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({'email': email}),
-    );
   static Future<Map<String, dynamic>> forgotPassword(String email) async {
     try {
       final url = '$baseUrl/auth/forgot_password.php';
@@ -159,6 +151,7 @@ class ApiService {
       );
       print('📡 API: Response status: ${response.statusCode}');
       print('📄 API: Response body: ${response.body}');
+      
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
@@ -169,35 +162,13 @@ class ApiService {
       }
     } catch (e) {
       print('❌ API: Error in forgotPassword: $e');
-
-    print('📡 Response status: ${response.statusCode}');
-    print('📄 Response body: ${response.body}');
-
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      } else {
-        return {'success': false, 'message': 'Server error: ${response.statusCode}'};
-      }
-    } catch (e) {
-      print('🚨 Forgot password connection error: $e');
-      return {'success': false, 'message': 'Connection error: $e'};
       return {
         'success': false,
-        'message': 'Server error: ${response.statusCode}'
+        'message': 'Network error: $e'
       };
-
     }
-  } catch (e) {
-    print('🚨 Forgot password connection error: $e');
-    return {
-      'success': false,
-      'message': 'Network error: $e'
-    };
   }
-}
+  
   static Future<Map<String, dynamic>> verifyOTP(String email, String otp) async {
     try {
       final response = await http.post(

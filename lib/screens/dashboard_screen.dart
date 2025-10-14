@@ -71,7 +71,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.description, size: 20),
-              title: const Text('Day Report'),
+              title: const Text('Daily Report'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.pushNamed(context, '/daily_report');
