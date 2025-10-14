@@ -12,13 +12,7 @@ class _ForgetPasswordScreenState extends State<ForgetPasswordScreen> {
   final TextEditingController _emailController = TextEditingController();
   bool _isLoading = false;
 
-  @override
-  void dispose() {
-    _emailController.dispose();
-    super.dispose();
-  }
-
-  void _showMessage(String message, {bool isError = false}) {
+  void _showMessage(BuildContext context, String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -27,32 +21,23 @@ class _ForgetPasswordScreenState extends State<ForgetPasswordScreen> {
     );
   }
 
-  Future<void> _handleSendOtp() async {
+  Future<void> _sendOtp(BuildContext context) async {
     final email = _emailController.text.trim();
-
     if (email.isEmpty) {
-      _showMessage('Please enter your email', isError: true);
+      _showMessage(context, 'Please enter your email', isError: true);
       return;
     }
-
-    final emailRegex = RegExp(r'^\S+@\S+\.\S+$');
-    if (!emailRegex.hasMatch(email)) {
-      _showMessage('Please enter a valid email address', isError: true);
-      return;
-    }
-
     setState(() => _isLoading = true);
     try {
-      final resp = await ApiService.forgotPassword(email);
-      if (resp['success'] == true) {
-        _showMessage(resp['message'] ?? 'OTP sent to your email');
-        // Pass the email forward if needed by the verification screen
+      final result = await ApiService.forgotPassword(email);
+      if (result['success'] == true) {
+        _showMessage(context, 'OTP sent to $email');
         Navigator.pushNamed(context, '/verification', arguments: email);
       } else {
-        _showMessage(resp['message'] ?? 'Failed to send OTP', isError: true);
+        _showMessage(context, result['message'] ?? 'Failed to send OTP', isError: true);
       }
     } catch (e) {
-      _showMessage('Failed to send OTP: $e', isError: true);
+      _showMessage(context, 'Network error: $e', isError: true);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -87,7 +72,6 @@ class _ForgetPasswordScreenState extends State<ForgetPasswordScreen> {
                 const SizedBox(height: 40),
                 TextField(
                   controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
                     labelText: 'Enter Email',
                     filled: true,
@@ -107,20 +91,11 @@ class _ForgetPasswordScreenState extends State<ForgetPasswordScreen> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  onPressed: _isLoading ? null : _handleSendOtp,
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.black,
-                          ),
-                        )
-                      : const Text(
-                          'Send OTP',
-                          style: TextStyle(fontSize: 16, color: Colors.black),
-                        ),
+                  onPressed: _isLoading ? null : () => _sendOtp(context),
+                  child: const Text(
+                    'Send OTP',
+                    style: TextStyle(fontSize: 16, color: Colors.black),
+                  ),
                 ),
               ],
             ),

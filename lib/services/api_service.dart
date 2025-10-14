@@ -37,14 +37,22 @@ class ApiService {
       print('📡 API: Response status: ${response.statusCode}');
       print('📄 API: Response body: ${response.body}');
       
-      // Parse response body regardless of status code
-      final data = json.decode(response.body);
-      
-      // Store token and user data if login successful
-      if (response.statusCode == 200 && data['success'] == true && data['token'] != null) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('token', data['token']);
-        await prefs.setString('user', json.encode(data['user']));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        // Store token and user data if login successful
+        if (data['success'] == true && data['token'] != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('token', data['token']);
+          await prefs.setString('user', json.encode(data['user']));
+        }
+        
+        return data;
+      } else {
+        return {
+          'success': false,
+          'message': 'Server error: ${response.statusCode}'
+        };
       }
       
       return data;
@@ -95,10 +103,8 @@ class ApiService {
   }
   
   static Future<Map<String, dynamic>> setPassword(
-    String email, 
-    String oldPassword, 
-    String newPassword, 
-    String confirmPassword
+    String email,
+    String password,
   ) async {
     try {
       print('🔗 API: Setting password for $email');
@@ -117,16 +123,7 @@ class ApiService {
       print('📄 API: Response body: ${response.body}');
       
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        
-        // Store token and user data if password change successful and token provided
-        if (data['success'] == true && data['token'] != null) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('token', data['token']);
-          await prefs.setString('user', json.encode(data['user']));
-        }
-        
-        return data;
+        return json.decode(response.body);
       } else {
         return {
           'success': false,
@@ -152,35 +149,35 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'email': email}),
       );
-<<<<<<< HEAD
-
-      print('📡 Response status: ${response.statusCode}');
-      print('📄 Response body: ${response.body}');
-
-=======
-      
->>>>>>> 8441ef73d839b198016db394aeec0b595186bec3
+      print('📡 API: Response status: ${response.statusCode}');
+      print('📄 API: Response body: ${response.body}');
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
-<<<<<<< HEAD
-        return {'success': false, 'message': 'Server error: ${response.statusCode}'};
-      }
-    } catch (e) {
-      print('🚨 Forgot password connection error: $e');
-      return {'success': false, 'message': 'Connection error: $e'};
-=======
         return {
           'success': false,
           'message': 'Server error: ${response.statusCode}'
         };
       }
     } catch (e) {
+      print('❌ API: Error in forgotPassword: $e');
+
+      print('📡 Response status: ${response.statusCode}');
+      print('📄 Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        return {'success': false, 'message': 'Server error: ${response.statusCode}'};
+      }
+    } catch (e) {
+      print('🚨 Forgot password connection error: $e');
+      return {'success': false, 'message': 'Connection error: $e'};
       return {
         'success': false,
         'message': 'Network error: $e'
       };
->>>>>>> 8441ef73d839b198016db394aeec0b595186bec3
+
     }
   }
   
