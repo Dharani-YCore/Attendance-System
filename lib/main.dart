@@ -63,27 +63,35 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
+  bool _initializing = true;
+
   @override
   void initState() {
     super.initState();
     // Initialize auth after the widget is built
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<AuthProvider>(context, listen: false).initializeAuth();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Provider.of<AuthProvider>(context, listen: false).initializeAuth();
+      if (mounted) {
+        setState(() {
+          _initializing = false;
+        });
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    // Show loading only during initial auth check
+    if (_initializing) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
-        if (authProvider.isLoading) {
-          return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
-          );
-        }
-        
         return authProvider.isLoggedIn 
             ? const DashboardScreen() 
             : const LoginScreen();

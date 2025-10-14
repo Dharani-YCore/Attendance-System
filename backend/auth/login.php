@@ -12,6 +12,7 @@ header("Access-Control-Max-Age: 3600");
 // Allow specific headers.
 header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
 
+
 // Handle pre-flight requests (OPTIONS method)
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     http_response_code(200);
@@ -81,8 +82,57 @@ if (!empty($data->email) && !empty($data->password)) {
             http_response_code(401);
             echo json_encode(array(
                 "success" => false,
-                "message" => "Invalid password."
+                "message" => "Password not set. Please set your password first.",
+                "action" => "set_password"
             ));
+        } else {
+            // ⚠️ DEVELOPMENT MODE: Allow plain text password comparison for testing
+            // TODO: REMOVE THIS IN PRODUCTION - Only use password_verify()
+            $passwordMatch = false;
+            
+            // Try hashed password first (secure method)
+            if (password_verify($data->password, $row['password'])) {
+                $passwordMatch = true;
+            } 
+            // DEVELOPMENT ONLY: Also check plain text (for testing with unhashed passwords)
+            else if ($data->password === $row['password']) {
+                $passwordMatch = true;
+                // Warning: This is insecure - hash this password!
+                error_log("WARNING: Plain text password detected for user: " . $row['email']);
+            }
+            
+            if ($passwordMatch) {
+            // Check if this is first-time login
+            if (isset($row['is_first_login']) && $row['is_first_login'] == 1) {
+                http_response_code(200);
+                echo json_encode(array(
+                    "success" => false,
+                    "message" => "Please change your default password.",
+                    "action" => "set_password"
+                ));
+            } else {
+                // Generate JWT token
+                $token = generateJWT($row['id'], $row['email']);
+                
+                http_response_code(200);
+                echo json_encode(array(
+                    "success" => true,
+                    "message" => "Login successful.",
+                    "token" => $token,
+                    "user" => array(
+                        "id" => $row['id'],
+                        "name" => $row['name'],
+                        "email" => $row['email']
+                    )
+                ));
+            }
+            } else {
+                http_response_code(401);
+                echo json_encode(array(
+                    "success" => false,
+                    "message" => "Invalid password."
+                ));
+            }
         }
     } else {
         http_response_code(404);
