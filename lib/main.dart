@@ -13,6 +13,8 @@ import 'screens/profile_screen.dart';
 import 'screens/qr_scanner_screen.dart';
 import 'screens/attendance_history_screen.dart';
 import 'screens/reports_screen.dart';
+import 'screens/daily_report_screen.dart';
+import 'screens/monthly_report_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -49,6 +51,8 @@ class MyApp extends StatelessWidget {
           '/qr_scanner': (context) => const QRScannerScreen(),
           '/history': (context) => const AttendanceHistoryScreen(),
           '/reports': (context) => const ReportsScreen(),
+          '/daily_report': (context) => const DailyReportScreen(),
+          '/monthly_report': (context) => const MonthlyReportScreen(),
         },
       ),
     );
