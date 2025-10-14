@@ -139,6 +139,14 @@ class ApiService {
     }
   }
   
+ static Future<Map<String, dynamic>> forgotPassword(String email) async {
+  try {
+    final url = '$baseUrl/auth/forgot_password.php';
+    final response = await http.post(
+      Uri.parse(url),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'email': email}),
+    );
   static Future<Map<String, dynamic>> forgotPassword(String email) async {
     try {
       final url = '$baseUrl/auth/forgot_password.php';
@@ -162,9 +170,12 @@ class ApiService {
     } catch (e) {
       print('❌ API: Error in forgotPassword: $e');
 
-      print('📡 Response status: ${response.statusCode}');
-      print('📄 Response body: ${response.body}');
+    print('📡 Response status: ${response.statusCode}');
+    print('📄 Response body: ${response.body}');
 
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
@@ -175,12 +186,18 @@ class ApiService {
       return {'success': false, 'message': 'Connection error: $e'};
       return {
         'success': false,
-        'message': 'Network error: $e'
+        'message': 'Server error: ${response.statusCode}'
       };
 
     }
+  } catch (e) {
+    print('🚨 Forgot password connection error: $e');
+    return {
+      'success': false,
+      'message': 'Network error: $e'
+    };
   }
-  
+}
   static Future<Map<String, dynamic>> verifyOTP(String email, String otp) async {
     try {
       final response = await http.post(
@@ -388,6 +405,31 @@ class ApiService {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        return {
+          'success': false,
+          'message': 'Server error: ${response.statusCode}'
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Network error: $e'
+      };
+    }
+  }
+  
+  static Future<Map<String, dynamic>> getHolidays(String startDate, String endDate) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/attendance/holidays.php?start_date=$startDate&end_date=$endDate'),
+        headers: {
+          'Content-Type': 'application/json',
         },
       );
       

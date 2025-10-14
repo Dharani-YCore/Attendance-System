@@ -61,15 +61,29 @@ if (!empty($user_id)) {
     $stmt->execute();
     $summary = $stmt->fetch(PDO::FETCH_ASSOC);
     
+    // Convert strings to integers
+    $total_days = (int)($summary['total_days'] ?? 0);
+    $present_days = (int)($summary['present_days'] ?? 0);
+    $late_days = (int)($summary['late_days'] ?? 0);
+    $absent_days = (int)($summary['absent_days'] ?? 0);
+    $leave_days = (int)($summary['leave_days'] ?? 0);
+    
     // Calculate attendance percentage
-    $total_working_days = $summary['total_days'];
-    $present_days = $summary['present_days'] + $summary['late_days']; // Late is still considered present
-    $attendance_percentage = $total_working_days > 0 ? round(($present_days / $total_working_days) * 100, 2) : 0;
+    $total_working_days = $total_days;
+    $present_count = $present_days + $late_days; // Late is still considered present
+    $attendance_percentage = $total_working_days > 0 ? round(($present_count / $total_working_days) * 100, 2) : 0.0;
     
     echo json_encode(array(
         "success" => true,
         "data" => $report_data,
-        "summary" => array_merge($summary, array("attendance_percentage" => $attendance_percentage)),
+        "summary" => array(
+            "total_days" => $total_days,
+            "present_days" => $present_days,
+            "late_days" => $late_days,
+            "absent_days" => $absent_days,
+            "leave_days" => $leave_days,
+            "attendance_percentage" => $attendance_percentage
+        ),
         "period" => array(
             "start_date" => $start_date,
             "end_date" => $end_date
