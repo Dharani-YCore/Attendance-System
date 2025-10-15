@@ -14,16 +14,21 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
   DateTime selectedMonth = DateTime.now();
   Map<String, dynamic>? reportData;
   List<Map<String, dynamic>> holidays = [];
+  String? errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _loadMonthlyReport();
+    // Schedule data loading after the first frame to avoid build phase conflicts
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadMonthlyReport();
+    });
   }
 
   void _loadMonthlyReport() async {
     setState(() {
       isLoading = true;
+      errorMessage = null;
     });
 
     try {
@@ -40,18 +45,23 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
         final result = await ApiService.getAttendanceReport(user['id'], startDate, endDate);
         final holidaysResult = await ApiService.getHolidays(startDate, endDate);
         
-        if (result['success']) {
-          setState(() {
-            reportData = result;
-            if (holidaysResult['success'] && holidaysResult['data'] != null) {
-              holidays = List<Map<String, dynamic>>.from(holidaysResult['data']);
-            }
-            isLoading = false;
-          });
-        }
+        setState(() {
+          reportData = result;
+          if (holidaysResult['success'] && holidaysResult['data'] != null) {
+            holidays = List<Map<String, dynamic>>.from(holidaysResult['data']);
+          }
+          isLoading = false;
+        });
+      } else {
+        setState(() {
+          errorMessage = 'User not found. Please login again.';
+          isLoading = false;
+        });
       }
     } catch (e) {
+      print('Error loading monthly report: $e');
       setState(() {
+        errorMessage = 'Failed to load monthly report. Please check your connection.';
         isLoading = false;
       });
     }
@@ -117,7 +127,34 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
+          : errorMessage != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: Colors.red.shade300,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.black54,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadMonthlyReport,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -482,8 +519,8 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
     for (int day = 1; day <= lastDay.day; day++) {
       final currentDate = DateTime(selectedMonth.year, selectedMonth.month, day);
       
-      // Skip weekends (Saturday = 6, Sunday = 7)
-      if (currentDate.weekday == DateTime.saturday || currentDate.weekday == DateTime.sunday) {
+      // Skip only Sundays
+      if (currentDate.weekday == DateTime.sunday) {
         continue;
       }
       
