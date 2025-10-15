@@ -14,6 +14,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   Map<String, dynamic>? attendanceData;
   DateTime selectedDate = DateTime.now();
   bool _initialized = false;
+  String? errorMessage;
 
   @override
   void didChangeDependencies() {
@@ -24,7 +25,10 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       if (args != null && args['date'] != null) {
         selectedDate = DateTime.parse(args['date']);
       }
-      _loadAttendance();
+      // Schedule data loading after the first frame to avoid build phase conflicts
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadAttendance();
+      });
       _initialized = true;
     }
   }
@@ -32,6 +36,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   void _loadAttendance() async {
     setState(() {
       isLoading = true;
+      errorMessage = null;
     });
 
     try {
@@ -39,23 +44,28 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       if (user != null) {
         final result = await ApiService.getAttendanceHistory(user['id'], limit: 30);
         
-        if (result['success']) {
-          final records = List<Map<String, dynamic>>.from(result['data'] ?? []);
-          final targetDate = DateFormat('yyyy-MM-dd').format(selectedDate);
-          
-          // Find attendance for selected date
-          attendanceData = records.firstWhere(
-            (record) => record['date'] == targetDate,
-            orElse: () => {},
-          );
-          
-          setState(() {
-            isLoading = false;
-          });
-        }
+        final records = List<Map<String, dynamic>>.from(result['data'] ?? []);
+        final targetDate = DateFormat('yyyy-MM-dd').format(selectedDate);
+        
+        // Find attendance for selected date
+        attendanceData = records.firstWhere(
+          (record) => record['date'] == targetDate,
+          orElse: () => {},
+        );
+        
+        setState(() {
+          isLoading = false;
+        });
+      } else {
+        setState(() {
+          errorMessage = 'User not found. Please login again.';
+          isLoading = false;
+        });
       }
     } catch (e) {
+      print('Error loading daily attendance: $e');
       setState(() {
+        errorMessage = 'Failed to load attendance data. Please check your connection.';
         isLoading = false;
       });
     }
@@ -101,7 +111,34 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
+          : errorMessage != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: Colors.red.shade300,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.black54,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadAttendance,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
