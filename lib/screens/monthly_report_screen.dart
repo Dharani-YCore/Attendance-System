@@ -216,112 +216,32 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Attendance Summary',
+                            'Attendance Summary:',
                             style: TextStyle(
-                              fontSize: 20,
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(height: 20),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildStatCard(
-                                  'Total',
-                                  (reportData!['summary']['total_days'] ?? 0).toString(),
-                                  Colors.blue,
-                                  Icons.calendar_today,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _buildStatCard(
-                                  'Present',
-                                  (reportData!['summary']['present_days'] ?? 0).toString(),
-                                  Colors.green,
-                                  Icons.check_circle,
-                                ),
-                              ),
-                            ],
+                          const SizedBox(height: 16),
+                          _buildSummaryItem(
+                            'Total working days',
+                            _calculateTotalWorkingDays().toString(),
                           ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildStatCard(
-                                  'Late',
-                                  (reportData!['summary']['late_days'] ?? 0).toString(),
-                                  Colors.orange,
-                                  Icons.access_time,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _buildStatCard(
-                                  'Absent',
-                                  (reportData!['summary']['absent_days'] ?? 0).toString(),
-                                  Colors.red,
-                                  Icons.cancel,
-                                ),
-                              ),
-                            ],
+                          const SizedBox(height: 8),
+                          _buildSummaryItem(
+                            'Days Present',
+                            (reportData!['summary']['present_days'] ?? 0).toString(),
                           ),
-                          const SizedBox(height: 20),
-                          // Attendance Rate
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF80DEEA).withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.analytics, color: Color(0xFF00BCD4)),
-                                const SizedBox(width: 10),
-                                Text(
-                                  'Attendance Rate: ${((reportData!['summary']['attendance_percentage'] ?? 0.0) as num).toStringAsFixed(1)}%',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF00838F),
-                                  ),
-                                ),
-                              ],
-                            ),
+                          const SizedBox(height: 8),
+                          _buildSummaryItem(
+                            'Attendance Not Marked',
+                            _calculateNotMarkedDays().toString(),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Recent Records
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
-                            spreadRadius: 1,
-                            blurRadius: 5,
+                          const SizedBox(height: 8),
+                          _buildSummaryItem(
+                            'Days Absent',
+                            (reportData!['summary']['absent_days'] ?? 0).toString(),
                           ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Recent Records',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 15),
-                          ..._buildRecordsList(),
                         ],
                       ),
                     ),
@@ -518,94 +438,64 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
     );
   }
 
-  List<Widget> _buildRecordsList() {
-    if (reportData == null || reportData!['data'] == null) {
-      return [
-        const Center(
-          child: Padding(
-            padding: EdgeInsets.all(20.0),
-            child: Text(
-              'No data available',
-              style: TextStyle(color: Colors.grey),
-            ),
+  Widget _buildSummaryItem(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 16,
+            color: Colors.black87,
           ),
         ),
-      ];
-    }
-
-    final data = reportData!['data'] as List;
-    final recentRecords = data.take(5).toList();
-
-    if (recentRecords.isEmpty) {
-      return [
-        const Center(
-          child: Padding(
-            padding: EdgeInsets.all(20.0),
-            child: Text(
-              'No records found',
-              style: TextStyle(color: Colors.grey),
-            ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
           ),
         ),
-      ];
-    }
+      ],
+    );
+  }
 
-    return recentRecords.map((record) {
-      final date = DateTime.parse(record['date']);
-      final formattedDate = DateFormat('MMM dd, yyyy').format(date);
+  int _calculateNotMarkedDays() {
+    final totalWorkingDays = _calculateTotalWorkingDays();
+    final presentDays = (reportData?['summary']?['present_days'] ?? 0) as int;
+    final absentDays = (reportData?['summary']?['absent_days'] ?? 0) as int;
+    final lateDays = (reportData?['summary']?['late_days'] ?? 0) as int;
+    
+    // Calculate not marked days by subtracting marked days from total working days
+    final markedDays = presentDays + absentDays + lateDays;
+    return totalWorkingDays - markedDays;
+  }
+
+  int _calculateTotalWorkingDays() {
+    final firstDay = DateTime(selectedMonth.year, selectedMonth.month, 1);
+    final lastDay = DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
+    
+    int workingDays = 0;
+    
+    // Iterate through each day of the month
+    for (int day = 1; day <= lastDay.day; day++) {
+      final currentDate = DateTime(selectedMonth.year, selectedMonth.month, day);
       
-      return Column(
-        children: [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: _getStatusIcon(record['status']),
-            title: Text(formattedDate),
-            subtitle: Text('Time: ${record['time']}'),
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: _getStatusColor(record['status']),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                record['status'],
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          if (record != recentRecords.last) const Divider(),
-        ],
-      );
-    }).toList();
+      // Skip weekends (Saturday = 6, Sunday = 7)
+      if (currentDate.weekday == DateTime.saturday || currentDate.weekday == DateTime.sunday) {
+        continue;
+      }
+      
+      // Skip holidays
+      if (_isHoliday(currentDate)) {
+        continue;
+      }
+      
+      workingDays++;
+    }
+    
+    return workingDays;
   }
 
-  Widget _getStatusIcon(String status) {
-    switch (status) {
-      case 'Present':
-        return const Icon(Icons.check_circle, color: Colors.green);
-      case 'Late':
-        return const Icon(Icons.access_time, color: Colors.orange);
-      case 'Absent':
-        return const Icon(Icons.cancel, color: Colors.red);
-      default:
-        return const Icon(Icons.help, color: Colors.grey);
-    }
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Present':
-        return Colors.green;
-      case 'Late':
-        return Colors.orange;
-      case 'Absent':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
 }
