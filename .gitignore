@@ -49,3 +49,4 @@ app.*.map.json
 
 # Backend vendor files (if using Composer)
 /backend/vendor/
+*.env
