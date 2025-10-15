@@ -47,6 +47,9 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
         
         setState(() {
           reportData = result;
+          print('📊 Monthly Report Data: $result');
+          print('📊 Summary exists: ${result['summary'] != null}');
+          print('📊 Summary data: ${result['summary']}');
           if (holidaysResult['success'] && holidaysResult['data'] != null) {
             holidays = List<Map<String, dynamic>>.from(holidaysResult['data']);
           }
@@ -259,25 +262,45 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
+                          const SizedBox(height: 20),
+                          // First Row: Total working days and Days Present
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: _buildSummaryItemCompact(
+                                  'Total working days',
+                                  _calculateTotalWorkingDays().toString(),
+                                ),
+                              ),
+                              const SizedBox(width: 20),
+                              Expanded(
+                                child: _buildSummaryItemCompact(
+                                  'Days Present',
+                                  (reportData!['summary']['present_days'] ?? 0).toString(),
+                                ),
+                              ),
+                            ],
+                          ),
                           const SizedBox(height: 16),
-                          _buildSummaryItem(
-                            'Total working days',
-                            _calculateTotalWorkingDays().toString(),
-                          ),
-                          const SizedBox(height: 8),
-                          _buildSummaryItem(
-                            'Days Present',
-                            (reportData!['summary']['present_days'] ?? 0).toString(),
-                          ),
-                          const SizedBox(height: 8),
-                          _buildSummaryItem(
-                            'Attendance Not Marked',
-                            _calculateNotMarkedDays().toString(),
-                          ),
-                          const SizedBox(height: 8),
-                          _buildSummaryItem(
-                            'Days Absent',
-                            (reportData!['summary']['absent_days'] ?? 0).toString(),
+                          // Second Row: Attendance Not Marked and Days Absent
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: _buildSummaryItemCompact(
+                                  'Attendance Not Marked',
+                                  _calculateNotMarkedDays().toString(),
+                                ),
+                              ),
+                              const SizedBox(width: 20),
+                              Expanded(
+                                child: _buildSummaryItemCompact(
+                                  'Days Absent',
+                                  (reportData!['summary']['absent_days'] ?? 0).toString(),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -495,6 +518,28 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSummaryItemCompact(String label, String value) {
+    return RichText(
+      text: TextSpan(
+        style: const TextStyle(
+          fontSize: 15,
+          color: Colors.black87,
+        ),
+        children: [
+          TextSpan(text: label),
+          const TextSpan(
+            text: ' : ',
+            style: TextStyle(fontWeight: FontWeight.normal),
+          ),
+          TextSpan(
+            text: value,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
     );
   }
 
