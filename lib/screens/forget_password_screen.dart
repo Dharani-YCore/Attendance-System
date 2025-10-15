@@ -30,6 +30,8 @@ class _ForgetPasswordScreenState extends State<ForgetPasswordScreen> {
     setState(() => _isLoading = true);
     try {
       final result = await ApiService.forgotPassword(email);
+      if (!mounted) return;
+      
       if (result['success'] == true) {
         _showMessage(context, 'OTP sent to $email');
         Navigator.pushNamed(context, '/verification', arguments: email);
@@ -37,7 +39,9 @@ class _ForgetPasswordScreenState extends State<ForgetPasswordScreen> {
         _showMessage(context, result['message'] ?? 'Failed to send OTP', isError: true);
       }
     } catch (e) {
-      _showMessage(context, 'Network error: $e', isError: true);
+      if (mounted) {
+        _showMessage(context, 'Network error: $e', isError: true);
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
