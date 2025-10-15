@@ -5,6 +5,12 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
+  // ⚙️ CONFIGURATION: Change this IP for physical Android devices
+  // For emulator: use 10.0.2.2
+  // For physical device: use your computer's local IP (e.g., 192.168.1.100)
+  // To find your IP: Run 'ipconfig' on Windows and look for IPv4 Address
+  static const String _localIpAddress = '10.0.2.2'; // Change this for physical devices
+  
   // Use Android emulator loopback when running on Android; use 127.0.0.1 for Web/others
   static String get baseUrl {
     if (kIsWeb) {
@@ -13,7 +19,7 @@ class ApiService {
     }
     try {
       if (Platform.isAndroid) {
-        return 'http://10.0.2.2/Attendance-System/backend';
+        return 'http://$_localIpAddress/Attendance-System/backend';
       }
     } catch (_) {
       // Platform may be unavailable; fall back to localhost
