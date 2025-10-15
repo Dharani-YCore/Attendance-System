@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  // Use Android emulator loopback when running on Android; use localhost for Web/others
+  // Use Android emulator loopback when running on Android; use 127.0.0.1 for Web/others
   static String get baseUrl {
     if (kIsWeb) {
       // When running Flutter Web on the same PC as XAMPP
