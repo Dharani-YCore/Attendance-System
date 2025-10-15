@@ -9,7 +9,7 @@ class ApiService {
   static String get baseUrl {
     if (kIsWeb) {
       // When running Flutter Web on the same PC as XAMPP
-      return 'http://localhost/Attendance-System-main/backend';
+      return 'http://127.0.0.1/Attendance-System/backend';
     }
     try {
       if (Platform.isAndroid) {
