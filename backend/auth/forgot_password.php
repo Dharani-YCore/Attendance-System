@@ -1,18 +1,14 @@
 <?php
-// Set CORS headers
-header("Access-Control-Allow-Origin: *");
-header("Content-Type: application/json; charset=UTF-8");
-header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Max-Age: 3600");
-header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With, X-Requested-By");
-header("Access-Control-Allow-Credentials: true");
+require_once '../config/cors.php';
+require_once '../config/database.php';
+require_once '../objects/user.php';
+require_once '../services/email_service.php';
+
+header('Content-Type: application/json');
 
 // Enable error reporting for debugging
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-
-include_once '../config/database.php';
-include_once '../services/email_service.php';
 
 // Handle pre-flight requests (OPTIONS method)
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
@@ -82,53 +78,30 @@ if ($num > 0) {
     $otp = sprintf("%04d", mt_rand(0, 9999));
     $expiry = date('Y-m-d H:i:s', time() + 600); // 10 minutes from now
 
-    // Store OTP in database
-    $query = "INSERT INTO password_resets (email, otp, expires_at) VALUES (?, ?, ?)
-              ON DUPLICATE KEY UPDATE otp = VALUES(otp), expires_at = VALUES(expires_at), created_at = NOW()";
+    // Store OTP in database (reset used=FALSE for new OTP)
+    $query = "INSERT INTO password_resets (email, otp, expires_at, used) VALUES (?, ?, ?, FALSE)
+              ON DUPLICATE KEY UPDATE otp = VALUES(otp), expires_at = VALUES(expires_at), used = FALSE, created_at = NOW()";
     $stmt = $db->prepare($query);
     $stmt->bindParam(1, $data->email);
-    $stmt->execute();
+    $stmt->bindParam(2, $otp);
+    $stmt->bindParam(3, $expiry);
     
-    $num = $stmt->rowCount();
-    
-    if ($num > 0) {
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        // Generate a random 4-digit OTP
-        $otp = sprintf("%04d", mt_rand(1000, 9999));
-        $expiry = date('Y-m-d H:i:s', time() + 600); // 10 minutes from now
-        
-        // Store OTP in database (reset used=FALSE for new OTP)
-        $query = "INSERT INTO password_resets (email, otp, expires_at, used) VALUES (?, ?, ?, FALSE)
-                  ON DUPLICATE KEY UPDATE otp = VALUES(otp), expires_at = VALUES(expires_at), used = FALSE, created_at = NOW()";
-        $stmt = $db->prepare($query);
-        $stmt->bindParam(1, $data->email);
-        $stmt->bindParam(2, $otp);
-        $stmt->bindParam(3, $expiry);
-        
-        if ($stmt->execute()) {
-            // Send OTP via email
-            $emailResult = $emailService->sendOTP($data->email, $row['name'], $otp);
+    if ($stmt->execute()) {
+        // Send OTP via email
+        $emailResult = $emailService->sendOTP($data->email, $row['name'], $otp);
 
-            if ($emailResult['success']) {
-                http_response_code(200);
-                echo json_encode(array(
-                    "success" => true,
-                    "message" => "OTP sent to your email address."
-                ));
-            } else {
-                http_response_code(500);
-                echo json_encode(array(
-                    "success" => false,
-                    "message" => "Unable to send OTP. Please try again later.",
-                    "error" => $emailResult['message'] // For debugging
-                ));
-            }
+        if ($emailResult['success']) {
+            http_response_code(200);
+            echo json_encode(array(
+                "success" => true,
+                "message" => "OTP sent to your email address."
+            ));
         } else {
             http_response_code(500);
             echo json_encode(array(
                 "success" => false,
-                "message" => "Failed to send OTP email. Please check server configuration."
+                "message" => "Unable to send OTP. Please try again later.",
+                "error" => $emailResult['message']
             ));
         }
     } else {

@@ -10,16 +10,16 @@ class ApiService {
     if (kIsWeb) {
       // When running Flutter Web on the same PC as XAMPP
       // Use 127.0.0.1 instead of localhost to avoid browser DNS/security issues
-      return 'http://127.0.0.1/Attendance-System-main/backend';
+      return 'http://127.0.0.1/Attendance-System/backend';
     }
     try {
       if (Platform.isAndroid) {
-        return 'http://10.0.2.2/Attendance-System-main/backend';
+        return 'http://10.0.2.2/Attendance-System/backend';
       }
     } catch (_) {
       // Platform may be unavailable; fall back to localhost
     }
-    return 'http://localhost/Attendance-System-main/backend';
+    return 'http://localhost/Attendance-System/backend';
   }
   
   // Authentication endpoints
