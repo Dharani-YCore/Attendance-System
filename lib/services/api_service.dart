@@ -9,7 +9,8 @@ class ApiService {
   // For emulator: use 10.0.2.2
   // For physical device: use your computer's local IP (e.g., 192.168.1.100)
   // To find your IP: Run 'ipconfig' on Windows and look for IPv4 Address
-  static const String _localIpAddress = '10.0.2.2'; // Change this for physical devices
+  static const String _localIpAddress = '192.168.118.191';
+    static const String _emulatorIpAddress = '10.0.2.2';
   
   // Use Android emulator loopback when running on Android; use 127.0.0.1 for Web/others
   static String get baseUrl {
@@ -38,6 +39,11 @@ class ApiService {
           'email': email,
           'password': password,
         }),
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw Exception('Connection timeout. Please check your network configuration.');
+        },
       );
       
       print('📡 API: Response status: ${response.statusCode}');
@@ -154,6 +160,11 @@ class ApiService {
         Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'email': email}),
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw Exception('Connection timeout. Please check your network configuration.');
+        },
       );
       print('📡 API: Response status: ${response.statusCode}');
       print('📄 API: Response body: ${response.body}');

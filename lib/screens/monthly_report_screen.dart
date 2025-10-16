@@ -381,6 +381,9 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
             Color borderColor = Colors.grey.shade300;
             Color textColor = Colors.black87;
             
+            final today = DateTime.now();
+            final isFutureDate = date.isAfter(DateTime(today.year, today.month, today.day));
+            
             // Priority: Attendance status > Holiday/Sunday
             if (status == 'Present') {
               circleColor = Colors.green;
@@ -396,6 +399,7 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
               circleColor = Colors.yellow.shade700;
               textColor = Colors.white;
             }
+            // Future dates (not marked) will show as normal text with no background
             
             if (isToday) {
               borderColor = Colors.cyan;
@@ -437,7 +441,6 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
           children: [
             _buildLegendItem('Present', Colors.green),
             _buildLegendItem('Absent', Colors.red),
-            _buildLegendItem('Late', Colors.orange),
             _buildLegendItem('Holiday', Colors.yellow.shade700),
           ],
         ),
@@ -544,27 +547,54 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
   }
 
   int _calculateNotMarkedDays() {
-    final totalWorkingDays = _calculateTotalWorkingDays();
-    final presentDays = (reportData?['summary']?['present_days'] ?? 0) as int;
-    final absentDays = (reportData?['summary']?['absent_days'] ?? 0) as int;
-    final lateDays = (reportData?['summary']?['late_days'] ?? 0) as int;
-    
-    // Calculate not marked days by subtracting marked days from total working days
-    final markedDays = presentDays + absentDays + lateDays;
-    return totalWorkingDays - markedDays;
-  }
-
-  int _calculateTotalWorkingDays() {
+    // Count future working days (after today)
     final firstDay = DateTime(selectedMonth.year, selectedMonth.month, 1);
     final lastDay = DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
+    final today = DateTime.now();
     
-    int workingDays = 0;
+    int futureDays = 0;
     
     // Iterate through each day of the month
     for (int day = 1; day <= lastDay.day; day++) {
       final currentDate = DateTime(selectedMonth.year, selectedMonth.month, day);
       
-      // Skip only Sundays
+      // Only count future dates (after today)
+      if (currentDate.isAfter(DateTime(today.year, today.month, today.day))) {
+        // Skip Sundays
+        if (currentDate.weekday == DateTime.sunday) {
+          continue;
+        }
+        
+        // Skip holidays
+        if (_isHoliday(currentDate)) {
+          continue;
+        }
+        
+        futureDays++;
+      }
+    }
+    
+    return futureDays;
+  }
+
+  int _calculateTotalWorkingDays() {
+    // Count working days up to today (excluding future days)
+    final firstDay = DateTime(selectedMonth.year, selectedMonth.month, 1);
+    final lastDay = DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
+    final today = DateTime.now();
+    
+    int workingDays = 0;
+    
+    // Iterate through each day of the month up to today
+    for (int day = 1; day <= lastDay.day; day++) {
+      final currentDate = DateTime(selectedMonth.year, selectedMonth.month, day);
+      
+      // Only count dates up to and including today
+      if (currentDate.isAfter(DateTime(today.year, today.month, today.day))) {
+        continue;
+      }
+      
+      // Skip Sundays
       if (currentDate.weekday == DateTime.sunday) {
         continue;
       }
