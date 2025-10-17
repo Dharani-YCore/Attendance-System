@@ -1,10 +1,15 @@
 -- Holidays Table for Government Holidays
 CREATE TABLE IF NOT EXISTS holidays (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    holiday_date DATE NOT NULL UNIQUE,
+    holiday_date DATE NOT NULL,
     holiday_name VARCHAR(255) NOT NULL,
     holiday_type ENUM('National', 'Regional', 'Festival') DEFAULT 'National',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    country_code VARCHAR(2) DEFAULT 'IN' COMMENT 'ISO 3166-1 alpha-2 country code',
+    description TEXT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_holiday (holiday_date, country_code)
 );
 
 -- Insert some common holidays for 2025
