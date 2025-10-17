@@ -1,5 +1,8 @@
 RewriteEngine On
 
+# Pass Authorization header to PHP (Required for JWT authentication)
+RewriteCond %{HTTP:Authorization} ^(.*)
+RewriteRule .* - [e=HTTP_AUTHORIZATION:%1]
 
 # Security headers
 Header always set X-Content-Type-Options nosniff

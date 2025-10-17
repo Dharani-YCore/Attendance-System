@@ -106,13 +106,48 @@ function base64url_decode($data) {
 }
 
 function getAuthToken() {
-    $headers = getallheaders();
-    if (isset($headers['Authorization'])) {
-        $authHeader = $headers['Authorization'];
-        if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+    // Try multiple methods to get the Authorization header
+    
+    // Method 1: Check $_SERVER for HTTP_AUTHORIZATION
+    if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
+        if (preg_match('/Bearer\s+(\S+)/', $authHeader, $matches)) {
             return $matches[1];
         }
     }
+    
+    // Method 2: Check for Authorization header (Apache mod_rewrite)
+    if (isset($_SERVER['Authorization'])) {
+        $authHeader = $_SERVER['Authorization'];
+        if (preg_match('/Bearer\s+(\S+)/', $authHeader, $matches)) {
+            return $matches[1];
+        }
+    }
+    
+    // Method 3: Use getallheaders() if available
+    if (function_exists('getallheaders')) {
+        $headers = getallheaders();
+        // Check both uppercase and lowercase variations
+        $authHeader = null;
+        foreach ($headers as $key => $value) {
+            if (strtolower($key) === 'authorization') {
+                $authHeader = $value;
+                break;
+            }
+        }
+        if ($authHeader && preg_match('/Bearer\s+(\S+)/', $authHeader, $matches)) {
+            return $matches[1];
+        }
+    }
+    
+    // Method 4: Check REDIRECT_HTTP_AUTHORIZATION (some server configs)
+    if (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
+        $authHeader = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
+        if (preg_match('/Bearer\s+(\S+)/', $authHeader, $matches)) {
+            return $matches[1];
+        }
+    }
+    
     return null;
 }
 

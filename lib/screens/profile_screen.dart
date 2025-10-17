@@ -13,6 +13,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? userStats;
   bool isLoading = true;
   bool isEditing = false;
+  String? errorMessage;
   
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -24,6 +25,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _loadUserProfile() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
     try {
       final user = await ApiService.getCurrentUser();
       if (user != null) {
@@ -36,10 +42,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _emailController.text = userProfile!['email'];
             isLoading = false;
           });
+        } else {
+          setState(() {
+            errorMessage = result['message'] ?? 'Failed to load profile';
+            isLoading = false;
+          });
         }
+      } else {
+        setState(() {
+          errorMessage = 'User not found. Please login again.';
+          isLoading = false;
+        });
       }
     } catch (e) {
       setState(() {
+        errorMessage = 'Failed to load profile. Please check your connection.';
         isLoading = false;
       });
     }
@@ -98,7 +115,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         child: isLoading
             ? const Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
+            : errorMessage != null
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 64,
+                            color: Colors.red.shade300,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              color: Colors.black54,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: _loadUserProfile,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.cyan,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 32,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: const Text(
+                              'Retry',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   children: [

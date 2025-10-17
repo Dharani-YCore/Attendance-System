@@ -237,78 +237,83 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
                   const SizedBox(height: 20),
 
                   // Summary Stats Card
-                  if (reportData != null && reportData!['summary'] != null) ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
-                            spreadRadius: 1,
-                            blurRadius: 5,
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Attendance Summary:',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          // First Row: Total working days and Days Present
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: _buildSummaryItemCompact(
-                                  'Total working days',
-                                  _calculateTotalWorkingDays().toString(),
-                                ),
-                              ),
-                              const SizedBox(width: 20),
-                              Expanded(
-                                child: _buildSummaryItemCompact(
-                                  'Days Present',
-                                  (reportData!['summary']['present_days'] ?? 0).toString(),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          // Second Row: Attendance Not Marked and Days Absent
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: _buildSummaryItemCompact(
-                                  'Attendance Not Marked',
-                                  _calculateNotMarkedDays().toString(),
-                                ),
-                              ),
-                              const SizedBox(width: 20),
-                              Expanded(
-                                child: _buildSummaryItemCompact(
-                                  'Days Absent',
-                                  (reportData!['summary']['absent_days'] ?? 0).toString(),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  _buildAttendanceSummary(),
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildAttendanceSummary() {
+    final presentDays = reportData?['summary']?['present_days'] ?? 0;
+    final absentDays = reportData?['summary']?['absent_days'] ?? 0;
+    
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 5,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Attendance Summary:',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 20),
+          // First Row: Total working days and Days Present
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: _buildSummaryItemCompact(
+                  'Total working days',
+                  _calculateTotalWorkingDays().toString(),
+                ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: _buildSummaryItemCompact(
+                  'Days Present',
+                  presentDays.toString(),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Second Row: Attendance Not Marked and Days Absent
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: _buildSummaryItemCompact(
+                  'Attendance Not Marked',
+                  _calculateNotMarkedDays().toString(),
+                ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: _buildSummaryItemCompact(
+                  'Days Absent',
+                  absentDays.toString(),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -351,85 +356,9 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
         ),
         const SizedBox(height: 12),
         
-        // Calendar grid
-        Wrap(
-          spacing: 4,
-          runSpacing: 8,
-          children: List.generate(42, (index) {
-            // Calculate actual day number
-            final dayOffset = (firstWeekday % 7);
-            final dayNumber = index - dayOffset + 1;
-            
-            // Check if this cell should display a day
-            if (dayNumber < 1 || dayNumber > daysInMonth) {
-              return SizedBox(
-                width: 40,
-                height: 40,
-                child: Container(),
-              );
-            }
-            
-            final date = DateTime(selectedMonth.year, selectedMonth.month, dayNumber);
-            final status = _getAttendanceStatus(date);
-            final isSunday = date.weekday == DateTime.sunday;
-            final isGovernmentHoliday = _isHoliday(date);
-            final isToday = date.year == DateTime.now().year &&
-                date.month == DateTime.now().month &&
-                date.day == DateTime.now().day;
-            
-            Color circleColor = Colors.transparent;
-            Color borderColor = Colors.grey.shade300;
-            Color textColor = Colors.black87;
-            
-            final today = DateTime.now();
-            final isFutureDate = date.isAfter(DateTime(today.year, today.month, today.day));
-            
-            // Priority: Attendance status > Holiday/Sunday
-            if (status == 'Present') {
-              circleColor = Colors.green;
-              textColor = Colors.white;
-            } else if (status == 'Absent') {
-              circleColor = Colors.red;
-              textColor = Colors.white;
-            } else if (status == 'Late') {
-              circleColor = Colors.orange;
-              textColor = Colors.white;
-            } else if (isSunday || isGovernmentHoliday) {
-              // Show yellow for Sundays and holidays if no attendance is marked
-              circleColor = Colors.yellow.shade700;
-              textColor = Colors.white;
-            }
-            // Future dates (not marked) will show as normal text with no background
-            
-            if (isToday) {
-              borderColor = Colors.cyan;
-            }
-            
-            return SizedBox(
-              width: 40,
-              height: 40,
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: circleColor != Colors.transparent ? circleColor : Colors.transparent,
-                  border: Border.all(
-                    color: borderColor,
-                    width: isToday ? 2 : 1,
-                  ),
-                ),
-                child: Center(
-                  child: Text(
-                    '$dayNumber',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                      color: textColor,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }),
+        // Calendar grid - Using Table for proper alignment
+        Table(
+          children: _buildCalendarRows(firstDay, lastDay, daysInMonth, firstWeekday),
         ),
         const SizedBox(height: 20),
         
@@ -445,6 +374,107 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
           ],
         ),
       ],
+    );
+  }
+
+  List<TableRow> _buildCalendarRows(DateTime firstDay, DateTime lastDay, int daysInMonth, int firstWeekday) {
+    List<TableRow> rows = [];
+    int dayCounter = 1;
+    // Adjust weekday: Sunday should be 0, Monday 1, etc.
+    int startOffset = firstWeekday % 7;
+    
+    // Build up to 6 weeks
+    for (int week = 0; week < 6; week++) {
+      List<Widget> dayCells = [];
+      
+      for (int weekday = 0; weekday < 7; weekday++) {
+        int cellIndex = week * 7 + weekday;
+        
+        // Before month starts or after month ends
+        if ((week == 0 && weekday < startOffset) || dayCounter > daysInMonth) {
+          dayCells.add(
+            SizedBox(
+              height: 44,
+              child: Container(),
+            ),
+          );
+        } else {
+          final date = DateTime(selectedMonth.year, selectedMonth.month, dayCounter);
+          dayCells.add(_buildDayCell(date, dayCounter));
+          dayCounter++;
+        }
+      }
+      
+      rows.add(TableRow(children: dayCells));
+      
+      // Stop if we've placed all days
+      if (dayCounter > daysInMonth) break;
+    }
+    
+    return rows;
+  }
+
+  Widget _buildDayCell(DateTime date, int dayNumber) {
+    final status = _getAttendanceStatus(date);
+    final isSunday = date.weekday == DateTime.sunday;
+    final isGovernmentHoliday = _isHoliday(date);
+    final isToday = date.year == DateTime.now().year &&
+        date.month == DateTime.now().month &&
+        date.day == DateTime.now().day;
+    
+    Color circleColor = Colors.transparent;
+    Color borderColor = Colors.grey.shade300;
+    Color textColor = Colors.black87;
+    
+    final today = DateTime.now();
+    final isFutureDate = date.isAfter(DateTime(today.year, today.month, today.day));
+    
+    // Priority: Attendance status > Holiday/Sunday
+    if (status == 'Present') {
+      circleColor = Colors.green;
+      textColor = Colors.white;
+    } else if (status == 'Absent') {
+      circleColor = Colors.red;
+      textColor = Colors.white;
+    } else if (status == 'Late') {
+      circleColor = Colors.orange;
+      textColor = Colors.white;
+    } else if (isSunday || isGovernmentHoliday) {
+      // Show yellow for Sundays and holidays if no attendance is marked
+      circleColor = Colors.yellow.shade700;
+      textColor = Colors.white;
+    }
+    // Future dates (not marked) will show as normal text with no background
+    
+    if (isToday) {
+      borderColor = Colors.cyan;
+    }
+    
+    return Padding(
+      padding: const EdgeInsets.all(2),
+      child: SizedBox(
+        height: 44,
+        child: Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: circleColor != Colors.transparent ? circleColor : Colors.transparent,
+            border: Border.all(
+              color: borderColor,
+              width: isToday ? 2 : 1,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              '$dayNumber',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                color: textColor,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 

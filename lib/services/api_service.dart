@@ -40,7 +40,7 @@ class ApiService {
           'password': password,
         }),
       ).timeout(
-        const Duration(seconds: 15),
+        const Duration(seconds: 30),
         onTimeout: () {
           throw Exception('Connection timeout. Please check your network configuration.');
         },
@@ -85,6 +85,11 @@ class ApiService {
           'email': email,
           'password': password,
         }),
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Connection timeout. Please check your network configuration.');
+        },
       );
       
       if (response.statusCode == 200) {
@@ -161,7 +166,7 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'email': email}),
       ).timeout(
-        const Duration(seconds: 15),
+        const Duration(seconds: 30),
         onTimeout: () {
           throw Exception('Connection timeout. Please check your network configuration.');
         },
@@ -257,13 +262,29 @@ class ApiService {
   static Future<Map<String, dynamic>> getUserProfile(int userId) async {
     try {
       final token = await _getToken();
+      if (token == null) {
+        print('❌ API: No token available for getUserProfile');
+        return {
+          'success': false,
+          'message': 'Authentication required. Please login again.'
+        };
+      }
+      print('🔗 API: Fetching user profile for user_id=$userId');
       final response = await http.get(
         Uri.parse('$baseUrl/user/profile.php?user_id=$userId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Connection timeout. Please check your network configuration.');
+        },
       );
+      
+      print('📡 API: Profile response status: ${response.statusCode}');
+      print('📄 API: Profile response body: ${response.body}');
       
       if (response.statusCode == 200) {
         return json.decode(response.body);
@@ -388,13 +409,28 @@ class ApiService {
   static Future<Map<String, dynamic>> getAttendanceReport(int userId, String startDate, String endDate) async {
     try {
       final token = await _getToken();
+      if (token == null) {
+        print('❌ API: No token available for getAttendanceReport');
+        return {
+          'success': false,
+          'message': 'Authentication required. Please login again.'
+        };
+      }
+      print('🔗 API: Fetching attendance report for user_id=$userId, $startDate to $endDate');
       final response = await http.get(
         Uri.parse('$baseUrl/attendance/report.php?user_id=$userId&start_date=$startDate&end_date=$endDate'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Connection timeout. Please check your network configuration.');
+        },
       );
+      
+      print('📡 API: Report response status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         return json.decode(response.body);
@@ -461,8 +497,11 @@ class ApiService {
   static Future<String?> _getToken() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getString('token');
+      final token = prefs.getString('token');
+      print('🔑 API: Retrieved token: ${token != null ? "Token exists (${token.substring(0, 20)}...)" : "No token found"}');
+      return token;
     } catch (e) {
+      print('❌ API: Error retrieving token: $e');
       return null;
     }
   }
