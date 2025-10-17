@@ -9,22 +9,27 @@ class ApiService {
   // For emulator: use 10.0.2.2
   // For physical device: use your computer's local IP (e.g., 192.168.1.100)
   // To find your IP: Run 'ipconfig' on Windows and look for IPv4 Address
-  static const String _localIpAddress = '10.0.2.2'; // Change this for physical devices
+  // TODO: Replace '192.168.1.10' with your computer's actual local IP address.
+  static const String _localIpAddress = '192.168.0.15'; // For physical device
+  static const String _emulatorIpAddress = '10.0.2.2'; // For Android emulator
   
   // Use Android emulator loopback when running on Android; use 127.0.0.1 for Web/others
   static String get baseUrl {
     if (kIsWeb) {
       // When running Flutter Web on the same PC as XAMPP
-      return 'http://127.0.0.1/Attendance-System/backend';
+      return 'http://127.0.0.1:8080/Attendance-System/backend';
     }
     try {
       if (Platform.isAndroid) {
-        return 'http://$_localIpAddress/Attendance-System/backend';
+        // Use a different IP for emulator vs. physical device.
+        // For simplicity in development, we often just hardcode the developer machine's IP.
+        // Ensure your phone and computer are on the same Wi-Fi network.
+        return 'http://$_localIpAddress:8080/Attendance-System/backend';
       }
     } catch (_) {
       // Platform may be unavailable; fall back to localhost
     }
-    return 'http://localhost/Attendance-System/backend';
+    return 'http://localhost:8080/Attendance-System/backend';
   }
   
   // Authentication endpoints
@@ -235,10 +240,12 @@ class ApiService {
       final prefs = await SharedPreferences.getInstance();
       final userString = prefs.getString('user');
       if (userString != null) {
-        return json.decode(userString);
+        final userData = json.decode(userString);
+        return userData;
       }
       return null;
     } catch (e) {
+      print('🚨 ApiService: getCurrentUser error: $e');
       return null;
     }
   }
@@ -316,20 +323,40 @@ class ApiService {
   }
   
   // Attendance endpoints
-  static Future<Map<String, dynamic>> markAttendance(int userId, String status) async {
+  static Future<Map<String, dynamic>> markAttendance(int userId, String status, {String? qrData}) async {
     try {
+      print('🎯 ApiService: markAttendance called with userId=$userId, status=$status');
       final token = await _getToken();
+      if (token == null) {
+        print('🚨 ApiService: No token available for markAttendance');
+        return {
+          'success': false,
+          'message': 'No authentication token available'
+        };
+      }
+      print('🔗 ApiService: Making attendance request with token: ${token.substring(0, 20)}...');
+      // Prepare request body
+      final Map<String, dynamic> requestBody = {
+        'user_id': userId,
+        'status': status,
+      };
+      
+      // Add QR data if provided
+      if (qrData != null) {
+        requestBody['qr_data'] = qrData;
+      }
+      
       final response = await http.post(
         Uri.parse('$baseUrl/attendance/mark.php'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: json.encode({
-          'user_id': userId,
-          'status': status,
-        }),
+        body: json.encode(requestBody),
       );
+      
+      print('📡 ApiService: markAttendance response status: ${response.statusCode}');
+      print('📄 ApiService: markAttendance response body: ${response.body}');
       
       if (response.statusCode == 200) {
         return json.decode(response.body);
@@ -433,6 +460,7 @@ class ApiService {
       final token = prefs.getString('token');
       return token != null;
     } catch (e) {
+      print('🚨 ApiService: isLoggedIn error: $e');
       return false;
     }
   }
@@ -450,9 +478,21 @@ class ApiService {
   static Future<String?> _getToken() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getString('token');
+      final token = prefs.getString('token');
+      if (token != null) {
+        print('🔑 ApiService: Retrieved token: ${token.substring(0, 20)}...');
+      } else {
+        print('🔑 ApiService: No token found in storage');
+      }
+      return token;
     } catch (e) {
+      print('🚨 ApiService: Error getting token: $e');
       return null;
     }
+  }
+
+  // Public method for debugging token state
+  static Future<String?> getStoredToken() async {
+    return _getToken();
   }
 }
