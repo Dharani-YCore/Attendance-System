@@ -1,5 +1,28 @@
--- India Public Holidays 2025
--- Since India is not supported by Nager.Date API, use this SQL to add holidays manually
+-- ================================================================
+-- COMPLETE HOLIDAYS TABLE SETUP
+-- Creates table with proper structure and populates with India holidays 2025
+-- ================================================================
+
+-- Drop existing table if you want to recreate (CAUTION: This deletes all existing holidays)
+-- DROP TABLE IF EXISTS holidays;
+
+-- Create holidays table with all required columns
+CREATE TABLE IF NOT EXISTS holidays (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    holiday_date DATE NOT NULL,
+    holiday_name VARCHAR(255) NOT NULL,
+    holiday_type ENUM('National', 'Regional', 'Festival', 'Company') DEFAULT 'National',
+    country_code VARCHAR(2) DEFAULT 'IN' COMMENT 'ISO 3166-1 alpha-2 country code',
+    description TEXT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_holiday (holiday_date, country_code),
+    INDEX idx_holiday_date (holiday_date),
+    INDEX idx_holiday_type (holiday_type),
+    INDEX idx_country_date (country_code, holiday_date),
+    INDEX idx_active_holidays (is_active, holiday_date)
+);
 
 -- Insert India holidays for 2025
 INSERT INTO holidays (holiday_date, holiday_name, holiday_type, country_code, description) VALUES
@@ -17,7 +40,7 @@ INSERT INTO holidays (holiday_date, holiday_name, holiday_type, country_code, de
 ('2025-03-14', 'Holi', 'Festival', 'IN', 'Hindu festival of colors celebrating spring and victory of good over evil'),
 ('2025-03-30', 'Ram Navami', 'Festival', 'IN', 'Hindu festival celebrating the birth of Lord Rama'),
 ('2025-08-27', 'Janmashtami', 'Festival', 'IN', 'Hindu festival celebrating the birth of Lord Krishna'),
-('2025-10-02', 'Dussehra', 'Festival', 'IN', 'Hindu festival celebrating the victory of Lord Rama over Ravana'),
+('2025-10-12', 'Dussehra', 'Festival', 'IN', 'Hindu festival celebrating the victory of Lord Rama over Ravana'),
 ('2025-10-20', 'Diwali', 'Festival', 'IN', 'Hindu festival of lights celebrating the victory of light over darkness'),
 
 -- Other Religious Festivals
@@ -38,7 +61,7 @@ ON DUPLICATE KEY UPDATE
     updated_at = CURRENT_TIMESTAMP;
 
 -- Verify the insert
-SELECT COUNT(*) as 'India Holidays Added' FROM holidays WHERE country_code = 'IN' AND YEAR(holiday_date) = 2025;
+SELECT COUNT(*) as 'Total Holidays Added' FROM holidays WHERE country_code = 'IN' AND YEAR(holiday_date) = 2025;
 
 -- Show all India holidays for 2025
 SELECT 

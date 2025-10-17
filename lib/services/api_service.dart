@@ -16,19 +16,19 @@ class ApiService {
   static String get baseUrl {
     if (kIsWeb) {
       // When running Flutter Web on the same PC as XAMPP
-      return 'http://127.0.0.1:8080/Attendance-System/backend';
+      return 'http://127.0.0.1/Attendance-System/backend';
     }
     try {
       if (Platform.isAndroid) {
         // Use a different IP for emulator vs. physical device.
         // For simplicity in development, we often just hardcode the developer machine's IP.
         // Ensure your phone and computer are on the same Wi-Fi network.
-        return 'http://$_localIpAddress:8080/Attendance-System/backend';
+        return 'http://$_localIpAddress/Attendance-System/backend';
       }
     } catch (_) {
       // Platform may be unavailable; fall back to localhost
     }
-    return 'http://localhost:8080/Attendance-System/backend';
+    return 'http://localhost/Attendance-System/backend';
   }
   
   // Authentication endpoints
@@ -52,23 +52,20 @@ class ApiService {
       print('📡 API: Response status: ${response.statusCode}');
       print('📄 API: Response body: ${response.body}');
       
+      // Parse response for both success and error cases
+      final data = json.decode(response.body);
+      
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        
         // Store token and user data if login successful
         if (data['success'] == true && data['token'] != null) {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('token', data['token']);
           await prefs.setString('user', json.encode(data['user']));
         }
-        
-        return data;
-      } else {
-        return {
-          'success': false,
-          'message': 'Server error: ${response.statusCode}'
-        };
       }
+      
+      // Return the parsed data which includes error messages from backend
+      return data;
     } catch (e) {
       print('❌ API: Error in login: $e');
       return {
@@ -95,23 +92,20 @@ class ApiService {
         },
       );
       
+      // Parse response for both success and error cases
+      final data = json.decode(response.body);
+      
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        
         // Store token and user data if registration successful
         if (data['success'] == true && data['token'] != null) {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('token', data['token']);
           await prefs.setString('user', json.encode(data['user']));
         }
-        
-        return data;
-      } else {
-        return {
-          'success': false,
-          'message': 'Server error: ${response.statusCode}'
-        };
       }
+      
+      // Return the parsed data which includes error messages from backend
+      return data;
     } catch (e) {
       return {
         'success': false,
@@ -143,7 +137,17 @@ class ApiService {
       print('📄 API: Response body: ${response.body}');
       
       if (response.statusCode == 200) {
-        return json.decode(response.body);
+        final data = json.decode(response.body);
+        
+        // Store token and user data if password change successful
+        if (data['success'] == true && data['token'] != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('token', data['token']);
+          await prefs.setString('user', json.encode(data['user']));
+          print('✅ API: Token and user data saved after password change');
+        }
+        
+        return data;
       } else {
         return {
           'success': false,

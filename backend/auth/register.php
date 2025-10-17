@@ -34,7 +34,8 @@ if (!empty($data->name) && !empty($data->email) && !empty($data->password)) {
         $stmt->bindParam(":name", $data->name);
         $stmt->bindParam(":email", $data->email);
         $stmt->bindParam(":password", $password_hash);
-        $is_first_login = true;
+        // Self-registered users choose their own password, so is_first_login = false
+        $is_first_login = false;
         $stmt->bindParam(":is_first_login", $is_first_login);
         
         if ($stmt->execute()) {
