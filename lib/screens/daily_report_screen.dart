@@ -229,9 +229,25 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                           const SizedBox(height: 20),
                           _buildStatusRow(
                             'Check-in Time',
-                            attendanceData!['time'] ?? 'N/A',
-                            Icons.access_time,
-                            Colors.blue,
+                            attendanceData!['check_in_time'] ?? attendanceData!['time'] ?? 'N/A',
+                            Icons.login,
+                            Colors.green,
+                          ),
+                          const Divider(height: 30),
+                          _buildStatusRow(
+                            'Check-out Time',
+                            attendanceData!['check_out_time'] ?? 'Not checked out',
+                            Icons.logout,
+                            attendanceData!['check_out_time'] != null ? Colors.blue : Colors.grey,
+                          ),
+                          const Divider(height: 30),
+                          _buildStatusRow(
+                            'Total Hours',
+                            attendanceData!['total_hours'] != null 
+                                ? '${attendanceData!['total_hours']} hours'
+                                : 'Not calculated',
+                            Icons.schedule,
+                            attendanceData!['total_hours'] != null ? Colors.purple : Colors.grey,
                           ),
                           const Divider(height: 30),
                           _buildStatusRow(
@@ -245,7 +261,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                             'Date',
                             DateFormat('MMMM dd, yyyy').format(selectedDate),
                             Icons.calendar_today,
-                            Colors.purple,
+                            Colors.teal,
                           ),
                         ],
                       ),

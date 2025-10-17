@@ -14,13 +14,18 @@ $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : date('Y-m-01');
 $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : date('Y-m-d'); // Today
 
 if (!empty($user_id)) {
-    // Get detailed attendance report
+    // Get detailed attendance report with check-in/check-out times
     $query = "SELECT 
                 a.date,
                 a.time,
+                a.check_in_time,
+                a.check_out_time,
+                a.total_hours,
                 a.status,
+                a.attendance_type,
                 r.morning_time,
-                r.evening_time
+                r.evening_time,
+                r.total_working_hours
               FROM attendance a
               LEFT JOIN reports r ON a.user_id = r.user_id AND a.date = r.report_date
               WHERE a.user_id = ? AND a.date BETWEEN ? AND ?
@@ -35,12 +40,30 @@ if (!empty($user_id)) {
     $report_data = array();
     
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        // Calculate total hours if not already calculated
+        $totalHours = $row['total_hours'];
+        if (!$totalHours && $row['check_in_time'] && $row['check_out_time']) {
+            try {
+                $checkIn = new DateTime($row['check_in_time']);
+                $checkOut = new DateTime($row['check_out_time']);
+                $interval = $checkIn->diff($checkOut);
+                $totalHours = round($interval->h + ($interval->i / 60), 2);
+            } catch (Exception $e) {
+                $totalHours = null;
+            }
+        }
+        
         $report_data[] = array(
             "date" => $row['date'],
-            "time" => $row['time'],
+            "time" => $row['time'], // Keep for backward compatibility
+            "check_in_time" => $row['check_in_time'],
+            "check_out_time" => $row['check_out_time'],
+            "total_hours" => $totalHours,
             "status" => $row['status'],
-            "morning_time" => $row['morning_time'],
-            "evening_time" => $row['evening_time']
+            "attendance_type" => $row['attendance_type'],
+            "morning_time" => $row['morning_time'], // From reports table
+            "evening_time" => $row['evening_time'], // From reports table
+            "total_working_hours" => $row['total_working_hours'] // From reports table
         );
     }
     
