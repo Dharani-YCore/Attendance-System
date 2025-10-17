@@ -76,7 +76,12 @@ function verifyJWT($jwt) {
     $payload = base64url_decode($tokenParts[1]);
     $signatureProvided = $tokenParts[2];
     
-    $expiration = json_decode($payload)->exp;
+    $payloadData = json_decode($payload);
+    if (!$payloadData) {
+        return false;
+    }
+    
+    $expiration = $payloadData->exp;
     $isTokenExpired = ($expiration - time()) < 0;
     
     if ($isTokenExpired) {
@@ -91,7 +96,7 @@ function verifyJWT($jwt) {
     $isSignatureValid = ($base64UrlSignature === $signatureProvided);
     
     if ($isSignatureValid) {
-        return json_decode($payload);
+        return $payloadData;
     } else {
         return false;
     }
@@ -106,46 +111,41 @@ function base64url_decode($data) {
 }
 
 function getAuthToken() {
-    // Try multiple methods to get the Authorization header
+    // Try multiple methods to get the authorization header
+    $authHeader = null;
     
-    // Method 1: Check $_SERVER for HTTP_AUTHORIZATION
-    if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
-        $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
-        if (preg_match('/Bearer\s+(\S+)/', $authHeader, $matches)) {
-            return $matches[1];
-        }
-    }
-    
-    // Method 2: Check for Authorization header (Apache mod_rewrite)
-    if (isset($_SERVER['Authorization'])) {
-        $authHeader = $_SERVER['Authorization'];
-        if (preg_match('/Bearer\s+(\S+)/', $authHeader, $matches)) {
-            return $matches[1];
-        }
-    }
-    
-    // Method 3: Use getallheaders() if available
+    // Method 1: getallheaders() function
     if (function_exists('getallheaders')) {
         $headers = getallheaders();
-        // Check both uppercase and lowercase variations
-        $authHeader = null;
-        foreach ($headers as $key => $value) {
-            if (strtolower($key) === 'authorization') {
-                $authHeader = $value;
-                break;
-            }
-        }
-        if ($authHeader && preg_match('/Bearer\s+(\S+)/', $authHeader, $matches)) {
-            return $matches[1];
+        if (isset($headers['Authorization'])) {
+            $authHeader = $headers['Authorization'];
+        } elseif (isset($headers['authorization'])) {
+            $authHeader = $headers['authorization'];
         }
     }
     
-    // Method 4: Check REDIRECT_HTTP_AUTHORIZATION (some server configs)
-    if (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
-        $authHeader = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
-        if (preg_match('/Bearer\s+(\S+)/', $authHeader, $matches)) {
-            return $matches[1];
+    // Method 2: $_SERVER variables
+    if (!$authHeader) {
+        if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+            $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
+        } elseif (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
+            $authHeader = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
         }
+    }
+    
+    // Method 3: apache_request_headers() function
+    if (!$authHeader && function_exists('apache_request_headers')) {
+        $headers = apache_request_headers();
+        if (isset($headers['Authorization'])) {
+            $authHeader = $headers['Authorization'];
+        } elseif (isset($headers['authorization'])) {
+            $authHeader = $headers['authorization'];
+        }
+    }
+    
+    // Extract Bearer token
+    if ($authHeader && preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+        return $matches[1];
     }
     
     return null;
@@ -153,6 +153,7 @@ function getAuthToken() {
 
 function validateRequest() {
     $token = getAuthToken();
+    
     if (!$token) {
         http_response_code(401);
         echo json_encode(array("success" => false, "message" => "Access denied. No token provided."));

@@ -23,18 +23,34 @@ class AuthProvider with ChangeNotifier {
 
   // Initialize auth state
   Future<void> initializeAuth() async {
+    print('🔄 AuthProvider: Starting initializeAuth');
     _isLoading = true;
     notifyListeners();
 
     try {
       _isLoggedIn = await ApiService.isLoggedIn();
+      print('🔄 AuthProvider: isLoggedIn check result: $_isLoggedIn');
+      
       if (_isLoggedIn) {
         _currentUser = await ApiService.getCurrentUser();
+        print('🔄 AuthProvider: Retrieved user data: $_currentUser');
+        
+        // Additional validation - make sure user data is complete
+        if (_currentUser == null || _currentUser!['id'] == null) {
+          print('⚠️ AuthProvider: Invalid user data, logging out');
+          _isLoggedIn = false;
+          _currentUser = null;
+          await ApiService.logout();
+        }
       }
     } catch (e) {
-      _errorMessage = 'Failed to initialize authentication';
+      print('🚨 AuthProvider: Error in initializeAuth: $e');
+      _errorMessage = 'Failed to initialize authentication: $e';
+      _isLoggedIn = false;
+      _currentUser = null;
     } finally {
       _isLoading = false;
+      print('🔄 AuthProvider: Final state - isLoggedIn: $_isLoggedIn, currentUser: $_currentUser');
       notifyListeners();
     }
   }

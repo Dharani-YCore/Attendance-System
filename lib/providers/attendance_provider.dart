@@ -16,13 +16,13 @@ class AttendanceProvider with ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   // Mark attendance
-  Future<bool> markAttendance(int userId, String status) async {
+  Future<bool> markAttendance(int userId, String status, {String? qrData}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final result = await ApiService.markAttendance(userId, status);
+      final result = await ApiService.markAttendance(userId, status, qrData: qrData);
       
       if (result['success']) {
         // Refresh attendance history after marking
@@ -110,6 +110,44 @@ class AttendanceProvider with ChangeNotifier {
   // Check if attendance is already marked today
   bool isAttendanceMarkedToday() {
     return getTodayAttendanceStatus() != null;
+  }
+
+  // Check if user has checked in today but not checked out
+  bool hasCheckedInToday() {
+    final todayStatus = getTodayAttendanceStatus();
+    return todayStatus != null;
+  }
+
+  // Check if user has completed both check-in and check-out today
+  bool hasCompletedAttendanceToday() {
+    if (_attendanceHistory.isEmpty) return false;
+    
+    final today = DateTime.now();
+    final todayString = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    
+    for (var record in _attendanceHistory) {
+      if (record['date'] == todayString) {
+        // Check if both check_in_time and check_out_time exist
+        return record['check_in_time'] != null && record['check_out_time'] != null;
+      }
+    }
+    return false;
+  }
+
+  // Get today's total working hours
+  double? getTodayTotalHours() {
+    if (_attendanceHistory.isEmpty) return null;
+    
+    final today = DateTime.now();
+    final todayString = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    
+    for (var record in _attendanceHistory) {
+      if (record['date'] == todayString) {
+        final totalHours = record['total_hours'];
+        return totalHours != null ? double.tryParse(totalHours.toString()) : null;
+      }
+    }
+    return null;
   }
 
   // Get attendance percentage

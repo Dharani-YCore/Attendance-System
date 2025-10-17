@@ -70,13 +70,31 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void initState() {
     super.initState();
-    // Initialize auth after the widget is built
+    _initializeApp();
+  }
+  
+  void _initializeApp() async {
+    // Initialize auth with a slight delay to ensure everything is ready
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await Provider.of<AuthProvider>(context, listen: false).initializeAuth();
-      if (mounted) {
-        setState(() {
-          _initializing = false;
-        });
+      try {
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        await authProvider.initializeAuth();
+        
+        // Give it another moment to settle
+        await Future.delayed(const Duration(milliseconds: 200));
+        
+        if (mounted) {
+          setState(() {
+            _initializing = false;
+          });
+        }
+      } catch (e) {
+        print('🚨 App initialization error: $e');
+        if (mounted) {
+          setState(() {
+            _initializing = false;
+          });
+        }
       }
     });
   }
