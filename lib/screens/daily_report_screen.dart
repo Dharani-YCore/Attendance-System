@@ -42,16 +42,35 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     try {
       final user = await ApiService.getCurrentUser();
       if (user != null) {
-        final result = await ApiService.getAttendanceHistory(user['id'], limit: 30);
+        // Get first and last day of selected date
+        final startDate = DateFormat('yyyy-MM-dd').format(selectedDate);
+        final endDate = DateFormat('yyyy-MM-dd').format(selectedDate);
         
-        final records = List<Map<String, dynamic>>.from(result['data'] ?? []);
-        final targetDate = DateFormat('yyyy-MM-dd').format(selectedDate);
+        // Fetch attendance report for the specific date
+        final result = await ApiService.getAttendanceReport(user['id'], startDate, endDate);
         
-        // Find attendance for selected date
-        attendanceData = records.firstWhere(
-          (record) => record['date'] == targetDate,
-          orElse: () => {},
-        );
+        if (result['success'] == true && result['data'] != null && result['data'].isNotEmpty) {
+          // Get the first (and should be only) record for the selected date
+          attendanceData = result['data'][0];
+          
+          // If total_hours is not calculated, calculate it
+          if (attendanceData!['check_in_time'] != null && 
+              attendanceData!['check_out_time'] != null &&
+              (attendanceData!['total_hours'] == null || attendanceData!['total_hours'] == 0)) {
+            try {
+              final checkIn = DateTime.parse('${attendanceData!['date']} ${attendanceData!['check_in_time']}');
+              final checkOut = DateTime.parse('${attendanceData!['date']} ${attendanceData!['check_out_time']}');
+              final difference = checkOut.difference(checkIn);
+              final totalHours = difference.inMinutes / 60.0;
+              attendanceData!['total_hours'] = double.parse(totalHours.toStringAsFixed(2));
+            } catch (e) {
+              print('Error calculating total hours: $e');
+            }
+          }
+        } else {
+          // If no record found, reset attendanceData
+          attendanceData = null;
+        }
         
         setState(() {
           isLoading = false;
@@ -229,25 +248,35 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                           const SizedBox(height: 20),
                           _buildStatusRow(
                             'Check-in Time',
-                            attendanceData!['check_in_time'] ?? attendanceData!['time'] ?? 'N/A',
+                            attendanceData!['check_in_time'] != null 
+                                ? _formatTime(attendanceData!['check_in_time'])
+                                : 'Not checked in',
                             Icons.login,
-                            Colors.green,
+                            attendanceData!['check_in_time'] != null ? Colors.green : Colors.grey,
                           ),
                           const Divider(height: 30),
                           _buildStatusRow(
                             'Check-out Time',
-                            attendanceData!['check_out_time'] ?? 'Not checked out',
+                            attendanceData!['check_out_time'] != null 
+                                ? _formatTime(attendanceData!['check_out_time'])
+                                : 'Not checked out',
                             Icons.logout,
                             attendanceData!['check_out_time'] != null ? Colors.blue : Colors.grey,
                           ),
                           const Divider(height: 30),
                           _buildStatusRow(
-                            'Total Hours',
+                            'Total Working Hours',
                             attendanceData!['total_hours'] != null 
                                 ? '${attendanceData!['total_hours']} hours'
-                                : 'Not calculated',
+                                : (attendanceData!['check_in_time'] != null && attendanceData!['check_out_time'] == null)
+                                    ? 'Still working...'
+                                    : 'Not available',
                             Icons.schedule,
-                            attendanceData!['total_hours'] != null ? Colors.purple : Colors.grey,
+                            attendanceData!['total_hours'] != null 
+                                ? Colors.purple 
+                                : (attendanceData!['check_in_time'] != null && attendanceData!['check_out_time'] == null)
+                                    ? Colors.orange
+                                    : Colors.grey,
                           ),
                           const Divider(height: 30),
                           _buildStatusRow(
@@ -352,6 +381,24 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
         ),
       ],
     );
+  }
+
+  String _formatTime(String timeString) {
+    try {
+      // Handle time string in format 'HH:MM:SS' or 'HH:MM'
+      final parts = timeString.split(':');
+      if (parts.length >= 2) {
+        final hour = int.parse(parts[0]);
+        final minute = parts[1];
+        final period = hour >= 12 ? 'PM' : 'AM';
+        final hour12 = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+        return '$hour12:$minute $period';
+      }
+      return timeString; // Return as is if format is unexpected
+    } catch (e) {
+      print('Error formatting time: $e');
+      return timeString; // Return original string on error
+    }
   }
 
   Color _getStatusColor(String? status) {

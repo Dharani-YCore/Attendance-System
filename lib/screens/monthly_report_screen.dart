@@ -41,32 +41,89 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
         final startDate = DateFormat('yyyy-MM-dd').format(firstDay);
         final endDate = DateFormat('yyyy-MM-dd').format(lastDay);
         
-        // Fetch both attendance report and holidays
-        final result = await ApiService.getAttendanceReport(user['id'], startDate, endDate);
-        final holidaysResult = await ApiService.getHolidays(startDate, endDate);
+        // Fetch both attendance report and holidays in parallel
+        final reportFuture = ApiService.getAttendanceReport(user['id'], startDate, endDate);
+        final holidaysFuture = ApiService.getHolidays(startDate, endDate);
         
-        setState(() {
-          reportData = result;
-          print('📊 Monthly Report Data: $result');
-          print('📊 Summary exists: ${result['summary'] != null}');
-          print('📊 Summary data: ${result['summary']}');
-          if (holidaysResult['success'] && holidaysResult['data'] != null) {
-            holidays = List<Map<String, dynamic>>.from(holidaysResult['data']);
+        // Wait for both requests to complete
+        final results = await Future.wait([reportFuture, holidaysFuture]);
+        final result = results[0];
+        final holidaysResult = results[1];
+        
+        // Process holidays
+        List<Map<String, dynamic>> holidaysList = [];
+        if (holidaysResult['success'] == true && holidaysResult['data'] != null) {
+          holidaysList = List<Map<String, dynamic>>.from(holidaysResult['data']);
+          print('📅 Loaded ${holidaysList.length} holidays');
+        } else {
+          print('⚠️ No holidays data or error: ${holidaysResult['message']}');
+        }
+        
+        // Process attendance data
+        if (result['success'] == true) {
+          print('✅ Successfully loaded attendance report');
+          
+          // Ensure the report data has the expected structure
+          if (result['data'] == null) {
+            result['data'] = [];
           }
-          isLoading = false;
-        });
+          
+          // If summary is missing, calculate it from the data
+          if (result['summary'] == null) {
+            print('ℹ️ Calculating summary from attendance data...');
+            final data = List<Map<String, dynamic>>.from(result['data']);
+            final presentDays = data.where((record) => 
+              record['status'] == 'Present' || record['status'] == 'Late').length;
+            
+            final absentDays = data.where((record) => 
+              record['status'] == 'Absent').length;
+              
+            final leaveDays = data.where((record) => 
+              record['status'] == 'On Leave').length;
+              
+            final totalDays = data.length;
+            final attendancePercentage = totalDays > 0 
+              ? ((presentDays / totalDays) * 100).round() 
+              : 0;
+              
+            result['summary'] = {
+              'total_days': totalDays,
+              'present_days': presentDays,
+              'absent_days': absentDays,
+              'leave_days': leaveDays,
+              'attendance_percentage': attendancePercentage,
+            };
+          }
+          
+          setState(() {
+            reportData = result;
+            holidays = holidaysList;
+            print('📊 Report data loaded with ${result['data']?.length ?? 0} records');
+            print('📊 Summary: ${result['summary']}');
+            print('📅 Holidays: ${holidays.length}');
+          });
+        } else {
+          print('❌ Error in attendance report: ${result['message']}');
+          setState(() {
+            errorMessage = 'Failed to load attendance data: ${result['message']}';
+          });
+        }
       } else {
         setState(() {
           errorMessage = 'User not found. Please login again.';
-          isLoading = false;
         });
       }
     } catch (e) {
-      print('Error loading monthly report: $e');
+      print('❌ Error loading monthly report: $e');
       setState(() {
         errorMessage = 'Failed to load monthly report. Please check your connection.';
-        isLoading = false;
       });
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 

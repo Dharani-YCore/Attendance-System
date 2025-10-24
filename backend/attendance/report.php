@@ -2,6 +2,9 @@
 include_once '../cors.php';
 include_once '../config/database.php';
 
+// Set timezone to India Standard Time (IST)
+date_default_timezone_set('Asia/Kolkata');
+
 $database = new Database();
 $db = $database->getConnection();
 
