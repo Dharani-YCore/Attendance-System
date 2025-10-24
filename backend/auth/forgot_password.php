@@ -4,6 +4,9 @@ require_once '../config/database.php';
 require_once '../objects/user.php';
 require_once '../services/email_service.php';
 
+// Set timezone to India Standard Time (IST)
+date_default_timezone_set('Asia/Kolkata');
+
 header('Content-Type: application/json');
 
 // Enable error reporting for debugging

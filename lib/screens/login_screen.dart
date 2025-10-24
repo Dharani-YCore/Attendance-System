@@ -219,21 +219,21 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 40),
                 
                 // Login Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4DD0E1), // Light cyan color from design
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 2,
-                    ),
-                    onPressed: () => _handleLogin(),
-                    child: Consumer<AuthProvider>(
-                      builder: (context, authProvider, child) {
-                        return authProvider.isLoading
+                Consumer<AuthProvider>(
+                  builder: (context, authProvider, child) {
+                    return SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4DD0E1), // Light cyan color from design
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 2,
+                        ),
+                        onPressed: authProvider.isLoading ? null : () => _handleLogin(),
+                        child: authProvider.isLoading
                             ? const SizedBox(
                                 height: 20,
                                 width: 20,
@@ -249,10 +249,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                   fontWeight: FontWeight.w600,
                                   color: Colors.black87,
                                 ),
-                              );
-                      },
-                    ),
-                  ),
+                              ),
+                      ),
+                    );
+                  },
                 ),
                 
                 const SizedBox(height: 60),

@@ -9,27 +9,26 @@ class ApiService {
   // For emulator: use 10.0.2.2
   // For physical device: use your computer's local IP (e.g., 192.168.1.100)
   // To find your IP: Run 'ipconfig' on Windows and look for IPv4 Address
-  // TODO: Replace '192.168.1.10' with your computer's actual local IP address.
-  static const String _localIpAddress = '192.168.0.15'; // For physical device
+  static const String _localIpAddress = '192.168.118.191'; // For physical device
   static const String _emulatorIpAddress = '10.0.2.2'; // For Android emulator
   
   // Use Android emulator loopback when running on Android; use 127.0.0.1 for Web/others
   static String get baseUrl {
     if (kIsWeb) {
       // When running Flutter Web on the same PC as XAMPP
-      return 'http://127.0.0.1:8080/Attendance-System/backend';
+      return 'http://127.0.0.1/Attendance-System/backend';
     }
     try {
       if (Platform.isAndroid) {
         // Use a different IP for emulator vs. physical device.
         // For simplicity in development, we often just hardcode the developer machine's IP.
         // Ensure your phone and computer are on the same Wi-Fi network.
-        return 'http://$_localIpAddress:8080/Attendance-System/backend';
+        return 'http://$_localIpAddress/Attendance-System/backend';
       }
     } catch (_) {
       // Platform may be unavailable; fall back to localhost
     }
-    return 'http://localhost:8080/Attendance-System/backend';
+    return 'http://localhost/Attendance-System/backend';
   }
   
   // Authentication endpoints
@@ -43,28 +42,30 @@ class ApiService {
           'email': email,
           'password': password,
         }),
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Connection timeout. Please check your network configuration.');
+        },
       );
       
       print('📡 API: Response status: ${response.statusCode}');
       print('📄 API: Response body: ${response.body}');
       
+      // Parse response for both success and error cases
+      final data = json.decode(response.body);
+      
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        
         // Store token and user data if login successful
         if (data['success'] == true && data['token'] != null) {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('token', data['token']);
           await prefs.setString('user', json.encode(data['user']));
         }
-        
-        return data;
-      } else {
-        return {
-          'success': false,
-          'message': 'Server error: ${response.statusCode}'
-        };
       }
+      
+      // Return the parsed data which includes error messages from backend
+      return data;
     } catch (e) {
       print('❌ API: Error in login: $e');
       return {
@@ -84,25 +85,27 @@ class ApiService {
           'email': email,
           'password': password,
         }),
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Connection timeout. Please check your network configuration.');
+        },
       );
       
+      // Parse response for both success and error cases
+      final data = json.decode(response.body);
+      
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        
         // Store token and user data if registration successful
         if (data['success'] == true && data['token'] != null) {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('token', data['token']);
           await prefs.setString('user', json.encode(data['user']));
         }
-        
-        return data;
-      } else {
-        return {
-          'success': false,
-          'message': 'Server error: ${response.statusCode}'
-        };
       }
+      
+      // Return the parsed data which includes error messages from backend
+      return data;
     } catch (e) {
       return {
         'success': false,
@@ -134,7 +137,17 @@ class ApiService {
       print('📄 API: Response body: ${response.body}');
       
       if (response.statusCode == 200) {
-        return json.decode(response.body);
+        final data = json.decode(response.body);
+        
+        // Store token and user data if password change successful
+        if (data['success'] == true && data['token'] != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('token', data['token']);
+          await prefs.setString('user', json.encode(data['user']));
+          print('✅ API: Token and user data saved after password change');
+        }
+        
+        return data;
       } else {
         return {
           'success': false,
@@ -159,6 +172,11 @@ class ApiService {
         Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'email': email}),
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Connection timeout. Please check your network configuration.');
+        },
       );
       print('📡 API: Response status: ${response.statusCode}');
       print('📄 API: Response body: ${response.body}');
@@ -253,13 +271,29 @@ class ApiService {
   static Future<Map<String, dynamic>> getUserProfile(int userId) async {
     try {
       final token = await _getToken();
+      if (token == null) {
+        print('❌ API: No token available for getUserProfile');
+        return {
+          'success': false,
+          'message': 'Authentication required. Please login again.'
+        };
+      }
+      print('🔗 API: Fetching user profile for user_id=$userId');
       final response = await http.get(
         Uri.parse('$baseUrl/user/profile.php?user_id=$userId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Connection timeout. Please check your network configuration.');
+        },
       );
+      
+      print('📡 API: Profile response status: ${response.statusCode}');
+      print('📄 API: Profile response body: ${response.body}');
       
       if (response.statusCode == 200) {
         return json.decode(response.body);
@@ -404,13 +438,28 @@ class ApiService {
   static Future<Map<String, dynamic>> getAttendanceReport(int userId, String startDate, String endDate) async {
     try {
       final token = await _getToken();
+      if (token == null) {
+        print('❌ API: No token available for getAttendanceReport');
+        return {
+          'success': false,
+          'message': 'Authentication required. Please login again.'
+        };
+      }
+      print('🔗 API: Fetching attendance report for user_id=$userId, $startDate to $endDate');
       final response = await http.get(
         Uri.parse('$baseUrl/attendance/report.php?user_id=$userId&start_date=$startDate&end_date=$endDate'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Connection timeout. Please check your network configuration.');
+        },
       );
+      
+      print('📡 API: Report response status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         return json.decode(response.body);

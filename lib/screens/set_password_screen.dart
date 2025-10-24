@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
 
 class SetPasswordScreen extends StatefulWidget {
   const SetPasswordScreen({super.key});
@@ -110,25 +111,27 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     });
 
     try {
-      final result = await ApiService.setPassword(email, oldPassword, newPassword, confirmPassword);
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final success = await authProvider.setPassword(email, oldPassword, newPassword, confirmPassword);
       
-      if (result['success']) {
-        // Password changed successfully, navigate to dashboard
-        if (result['token'] != null) {
-          // Token is already saved by ApiService, navigate to dashboard
+      if (success) {
+        // Password changed successfully, automatically logged in
+        _showMessage('Password changed successfully!');
+        // Navigate to dashboard
+        if (mounted) {
           Navigator.pushReplacementNamed(context, '/dashboard');
-        } else {
-          _showSuccessDialog(context, email);
         }
       } else {
-        _showMessage(result['message'], isError: true);
+        _showMessage(authProvider.errorMessage ?? 'Failed to set password', isError: true);
       }
     } catch (e) {
       _showMessage('Failed to set password: $e', isError: true);
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 

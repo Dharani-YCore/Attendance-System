@@ -41,32 +41,89 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
         final startDate = DateFormat('yyyy-MM-dd').format(firstDay);
         final endDate = DateFormat('yyyy-MM-dd').format(lastDay);
         
-        // Fetch both attendance report and holidays
-        final result = await ApiService.getAttendanceReport(user['id'], startDate, endDate);
-        final holidaysResult = await ApiService.getHolidays(startDate, endDate);
+        // Fetch both attendance report and holidays in parallel
+        final reportFuture = ApiService.getAttendanceReport(user['id'], startDate, endDate);
+        final holidaysFuture = ApiService.getHolidays(startDate, endDate);
         
-        setState(() {
-          reportData = result;
-          print('📊 Monthly Report Data: $result');
-          print('📊 Summary exists: ${result['summary'] != null}');
-          print('📊 Summary data: ${result['summary']}');
-          if (holidaysResult['success'] && holidaysResult['data'] != null) {
-            holidays = List<Map<String, dynamic>>.from(holidaysResult['data']);
+        // Wait for both requests to complete
+        final results = await Future.wait([reportFuture, holidaysFuture]);
+        final result = results[0];
+        final holidaysResult = results[1];
+        
+        // Process holidays
+        List<Map<String, dynamic>> holidaysList = [];
+        if (holidaysResult['success'] == true && holidaysResult['data'] != null) {
+          holidaysList = List<Map<String, dynamic>>.from(holidaysResult['data']);
+          print('📅 Loaded ${holidaysList.length} holidays');
+        } else {
+          print('⚠️ No holidays data or error: ${holidaysResult['message']}');
+        }
+        
+        // Process attendance data
+        if (result['success'] == true) {
+          print('✅ Successfully loaded attendance report');
+          
+          // Ensure the report data has the expected structure
+          if (result['data'] == null) {
+            result['data'] = [];
           }
-          isLoading = false;
-        });
+          
+          // If summary is missing, calculate it from the data
+          if (result['summary'] == null) {
+            print('ℹ️ Calculating summary from attendance data...');
+            final data = List<Map<String, dynamic>>.from(result['data']);
+            final presentDays = data.where((record) => 
+              record['status'] == 'Present' || record['status'] == 'Late').length;
+            
+            final absentDays = data.where((record) => 
+              record['status'] == 'Absent').length;
+              
+            final leaveDays = data.where((record) => 
+              record['status'] == 'On Leave').length;
+              
+            final totalDays = data.length;
+            final attendancePercentage = totalDays > 0 
+              ? ((presentDays / totalDays) * 100).round() 
+              : 0;
+              
+            result['summary'] = {
+              'total_days': totalDays,
+              'present_days': presentDays,
+              'absent_days': absentDays,
+              'leave_days': leaveDays,
+              'attendance_percentage': attendancePercentage,
+            };
+          }
+          
+          setState(() {
+            reportData = result;
+            holidays = holidaysList;
+            print('📊 Report data loaded with ${result['data']?.length ?? 0} records');
+            print('📊 Summary: ${result['summary']}');
+            print('📅 Holidays: ${holidays.length}');
+          });
+        } else {
+          print('❌ Error in attendance report: ${result['message']}');
+          setState(() {
+            errorMessage = 'Failed to load attendance data: ${result['message']}';
+          });
+        }
       } else {
         setState(() {
           errorMessage = 'User not found. Please login again.';
-          isLoading = false;
         });
       }
     } catch (e) {
-      print('Error loading monthly report: $e');
+      print('❌ Error loading monthly report: $e');
       setState(() {
         errorMessage = 'Failed to load monthly report. Please check your connection.';
-        isLoading = false;
       });
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
@@ -237,78 +294,83 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
                   const SizedBox(height: 20),
 
                   // Summary Stats Card
-                  if (reportData != null && reportData!['summary'] != null) ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
-                            spreadRadius: 1,
-                            blurRadius: 5,
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Attendance Summary:',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          // First Row: Total working days and Days Present
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: _buildSummaryItemCompact(
-                                  'Total working days',
-                                  _calculateTotalWorkingDays().toString(),
-                                ),
-                              ),
-                              const SizedBox(width: 20),
-                              Expanded(
-                                child: _buildSummaryItemCompact(
-                                  'Days Present',
-                                  (reportData!['summary']['present_days'] ?? 0).toString(),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          // Second Row: Attendance Not Marked and Days Absent
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: _buildSummaryItemCompact(
-                                  'Attendance Not Marked',
-                                  _calculateNotMarkedDays().toString(),
-                                ),
-                              ),
-                              const SizedBox(width: 20),
-                              Expanded(
-                                child: _buildSummaryItemCompact(
-                                  'Days Absent',
-                                  (reportData!['summary']['absent_days'] ?? 0).toString(),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  _buildAttendanceSummary(),
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildAttendanceSummary() {
+    final presentDays = reportData?['summary']?['present_days'] ?? 0;
+    final absentDays = reportData?['summary']?['absent_days'] ?? 0;
+    
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 5,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Attendance Summary:',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 20),
+          // First Row: Total working days and Days Present
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: _buildSummaryItemCompact(
+                  'Total working days',
+                  _calculateTotalWorkingDays().toString(),
+                ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: _buildSummaryItemCompact(
+                  'Days Present',
+                  presentDays.toString(),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Second Row: Attendance Not Marked and Days Absent
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: _buildSummaryItemCompact(
+                  'Attendance Not Marked',
+                  _calculateNotMarkedDays().toString(),
+                ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: _buildSummaryItemCompact(
+                  'Days Absent',
+                  absentDays.toString(),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -351,81 +413,9 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
         ),
         const SizedBox(height: 12),
         
-        // Calendar grid
-        Wrap(
-          spacing: 4,
-          runSpacing: 8,
-          children: List.generate(42, (index) {
-            // Calculate actual day number
-            final dayOffset = (firstWeekday % 7);
-            final dayNumber = index - dayOffset + 1;
-            
-            // Check if this cell should display a day
-            if (dayNumber < 1 || dayNumber > daysInMonth) {
-              return SizedBox(
-                width: 40,
-                height: 40,
-                child: Container(),
-              );
-            }
-            
-            final date = DateTime(selectedMonth.year, selectedMonth.month, dayNumber);
-            final status = _getAttendanceStatus(date);
-            final isSunday = date.weekday == DateTime.sunday;
-            final isGovernmentHoliday = _isHoliday(date);
-            final isToday = date.year == DateTime.now().year &&
-                date.month == DateTime.now().month &&
-                date.day == DateTime.now().day;
-            
-            Color circleColor = Colors.transparent;
-            Color borderColor = Colors.grey.shade300;
-            Color textColor = Colors.black87;
-            
-            // Priority: Attendance status > Holiday/Sunday
-            if (status == 'Present') {
-              circleColor = Colors.green;
-              textColor = Colors.white;
-            } else if (status == 'Absent') {
-              circleColor = Colors.red;
-              textColor = Colors.white;
-            } else if (status == 'Late') {
-              circleColor = Colors.orange;
-              textColor = Colors.white;
-            } else if (isSunday || isGovernmentHoliday) {
-              // Show yellow for Sundays and holidays if no attendance is marked
-              circleColor = Colors.yellow.shade700;
-              textColor = Colors.white;
-            }
-            
-            if (isToday) {
-              borderColor = Colors.cyan;
-            }
-            
-            return SizedBox(
-              width: 40,
-              height: 40,
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: circleColor != Colors.transparent ? circleColor : Colors.transparent,
-                  border: Border.all(
-                    color: borderColor,
-                    width: isToday ? 2 : 1,
-                  ),
-                ),
-                child: Center(
-                  child: Text(
-                    '$dayNumber',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                      color: textColor,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }),
+        // Calendar grid - Using Table for proper alignment
+        Table(
+          children: _buildCalendarRows(firstDay, lastDay, daysInMonth, firstWeekday),
         ),
         const SizedBox(height: 20),
         
@@ -437,11 +427,111 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
           children: [
             _buildLegendItem('Present', Colors.green),
             _buildLegendItem('Absent', Colors.red),
-            _buildLegendItem('Late', Colors.orange),
             _buildLegendItem('Holiday', Colors.yellow.shade700),
           ],
         ),
       ],
+    );
+  }
+
+  List<TableRow> _buildCalendarRows(DateTime firstDay, DateTime lastDay, int daysInMonth, int firstWeekday) {
+    List<TableRow> rows = [];
+    int dayCounter = 1;
+    // Adjust weekday: Sunday should be 0, Monday 1, etc.
+    int startOffset = firstWeekday % 7;
+    
+    // Build up to 6 weeks
+    for (int week = 0; week < 6; week++) {
+      List<Widget> dayCells = [];
+      
+      for (int weekday = 0; weekday < 7; weekday++) {
+        int cellIndex = week * 7 + weekday;
+        
+        // Before month starts or after month ends
+        if ((week == 0 && weekday < startOffset) || dayCounter > daysInMonth) {
+          dayCells.add(
+            SizedBox(
+              height: 44,
+              child: Container(),
+            ),
+          );
+        } else {
+          final date = DateTime(selectedMonth.year, selectedMonth.month, dayCounter);
+          dayCells.add(_buildDayCell(date, dayCounter));
+          dayCounter++;
+        }
+      }
+      
+      rows.add(TableRow(children: dayCells));
+      
+      // Stop if we've placed all days
+      if (dayCounter > daysInMonth) break;
+    }
+    
+    return rows;
+  }
+
+  Widget _buildDayCell(DateTime date, int dayNumber) {
+    final status = _getAttendanceStatus(date);
+    final isSunday = date.weekday == DateTime.sunday;
+    final isGovernmentHoliday = _isHoliday(date);
+    final isToday = date.year == DateTime.now().year &&
+        date.month == DateTime.now().month &&
+        date.day == DateTime.now().day;
+    
+    Color circleColor = Colors.transparent;
+    Color borderColor = Colors.grey.shade300;
+    Color textColor = Colors.black87;
+    
+    final today = DateTime.now();
+    final isFutureDate = date.isAfter(DateTime(today.year, today.month, today.day));
+    
+    // Priority: Attendance status > Holiday/Sunday
+    if (status == 'Present') {
+      circleColor = Colors.green;
+      textColor = Colors.white;
+    } else if (status == 'Absent') {
+      circleColor = Colors.red;
+      textColor = Colors.white;
+    } else if (status == 'Late') {
+      circleColor = Colors.orange;
+      textColor = Colors.white;
+    } else if (isSunday || isGovernmentHoliday) {
+      // Show yellow for Sundays and holidays if no attendance is marked
+      circleColor = Colors.yellow.shade700;
+      textColor = Colors.white;
+    }
+    // Future dates (not marked) will show as normal text with no background
+    
+    if (isToday) {
+      borderColor = Colors.cyan;
+    }
+    
+    return Padding(
+      padding: const EdgeInsets.all(2),
+      child: SizedBox(
+        height: 44,
+        child: Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: circleColor != Colors.transparent ? circleColor : Colors.transparent,
+            border: Border.all(
+              color: borderColor,
+              width: isToday ? 2 : 1,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              '$dayNumber',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                color: textColor,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -544,27 +634,54 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
   }
 
   int _calculateNotMarkedDays() {
-    final totalWorkingDays = _calculateTotalWorkingDays();
-    final presentDays = (reportData?['summary']?['present_days'] ?? 0) as int;
-    final absentDays = (reportData?['summary']?['absent_days'] ?? 0) as int;
-    final lateDays = (reportData?['summary']?['late_days'] ?? 0) as int;
-    
-    // Calculate not marked days by subtracting marked days from total working days
-    final markedDays = presentDays + absentDays + lateDays;
-    return totalWorkingDays - markedDays;
-  }
-
-  int _calculateTotalWorkingDays() {
+    // Count future working days (after today)
     final firstDay = DateTime(selectedMonth.year, selectedMonth.month, 1);
     final lastDay = DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
+    final today = DateTime.now();
     
-    int workingDays = 0;
+    int futureDays = 0;
     
     // Iterate through each day of the month
     for (int day = 1; day <= lastDay.day; day++) {
       final currentDate = DateTime(selectedMonth.year, selectedMonth.month, day);
       
-      // Skip only Sundays
+      // Only count future dates (after today)
+      if (currentDate.isAfter(DateTime(today.year, today.month, today.day))) {
+        // Skip Sundays
+        if (currentDate.weekday == DateTime.sunday) {
+          continue;
+        }
+        
+        // Skip holidays
+        if (_isHoliday(currentDate)) {
+          continue;
+        }
+        
+        futureDays++;
+      }
+    }
+    
+    return futureDays;
+  }
+
+  int _calculateTotalWorkingDays() {
+    // Count working days up to today (excluding future days)
+    final firstDay = DateTime(selectedMonth.year, selectedMonth.month, 1);
+    final lastDay = DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
+    final today = DateTime.now();
+    
+    int workingDays = 0;
+    
+    // Iterate through each day of the month up to today
+    for (int day = 1; day <= lastDay.day; day++) {
+      final currentDate = DateTime(selectedMonth.year, selectedMonth.month, day);
+      
+      // Only count dates up to and including today
+      if (currentDate.isAfter(DateTime(today.year, today.month, today.day))) {
+        continue;
+      }
+      
+      // Skip Sundays
       if (currentDate.weekday == DateTime.sunday) {
         continue;
       }
