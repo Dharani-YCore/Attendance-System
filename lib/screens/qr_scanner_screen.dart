@@ -19,6 +19,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   bool isScanned = false;
   String? scanResult;
   String? checkInTime;
+  String? actionType; // 'check_in' or 'check_out'
   MobileScannerController? cameraController;
 
   @override
@@ -72,9 +73,9 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                       ),
                     ),
                     const SizedBox(height: 30),
-                    const Text(
-                      'CHECKED IN',
-                      style: TextStyle(
+                    Text(
+                      actionType == 'check_out' ? 'CHECKED OUT' : 'CHECKED IN',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
@@ -92,7 +93,9 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                       ),
                     const SizedBox(height: 20),
                     Text(
-                      'Attendance marked successfully!',
+                      actionType == 'check_out' 
+                          ? 'See you tomorrow!'
+                          : 'Attendance marked successfully!',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.8),
                         fontSize: 16,
@@ -434,12 +437,12 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       return;
     }
     
-    String actionType;
+    String currentActionType;
     if (!hasCheckedInToday) {
-      actionType = 'check_in';
+      currentActionType = 'check_in';
       print('✅ This will be a CHECK-IN');
     } else {
-      actionType = 'check_out';
+      currentActionType = 'check_out';
       print('🚪 This will be a CHECK-OUT');
     }
 
@@ -479,6 +482,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           
           setState(() {
             isScanned = true;
+            actionType = currentActionType; // Store the action type
             checkInTime = DateTime.now().toString().split(' ')[1].substring(0, 5);
             isProcessing = false;
           });

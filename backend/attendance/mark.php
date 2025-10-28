@@ -171,16 +171,50 @@ function validateQRCode($qrData, $db) {
             return ['valid' => false, 'message' => 'Invalid QR code format'];
         }
         
-        // Handle static QR codes (office attendance type)
-        if (isset($qrInfo['type']) && $qrInfo['type'] === 'office_attendance' && isset($qrInfo['static']) && $qrInfo['static'] === true) {
-            // For static QR codes, we accept them as valid without database lookup
+        // If env restrictions are configured, only accept QR that matches them
+        $allowedQrId = env('ALLOWED_QR_ID', null);
+        $allowedQrData = env('ALLOWED_QR_DATA', null);
+        $allowedQrHash = env('ALLOWED_QR_HASH', null);
+
+        if ($allowedQrData || $allowedQrHash || $allowedQrId) {
+            $raw = $qrData;
+            $rawHash = hash('sha256', $raw);
+
+            // Exact string/hash/id match checks
+            $matchesData = $allowedQrData ? hash_equals($allowedQrData, $raw) : false;
+            $matchesHash = $allowedQrHash ? hash_equals($allowedQrHash, $rawHash) : false;
+            $matchesId = $allowedQrId ? (isset($qrInfo['id']) && hash_equals($allowedQrId, strval($qrInfo['id']))) : false;
+
+            // Subset JSON match: if ALLOWED_QR_DATA is JSON and provided data is JSON, ensure all keys in allowed are equal in provided
+            $matchesSubset = false;
+            if (!$matchesData && $allowedQrData) {
+                $allowedJson = json_decode($allowedQrData, true);
+                if (is_array($allowedJson) && is_array($qrInfo)) {
+                    $allMatch = true;
+                    foreach ($allowedJson as $k => $v) {
+                        if (!array_key_exists($k, $qrInfo) || strval($qrInfo[$k]) !== strval($v)) {
+                            $allMatch = false;
+                            break;
+                        }
+                    }
+                    $matchesSubset = $allMatch;
+                }
+            }
+
+            if (!($matchesData || $matchesHash || $matchesId || $matchesSubset)) {
+                return ['valid' => false, 'message' => 'This QR code is not authorized for attendance'];
+            }
+
+            // If we have an env-authorized match, treat as valid immediately (no DB/id requirement)
+            // Construct a simple qr_info payload for logging
+            $location = $qrInfo['location'] ?? 'UNKNOWN';
             return [
                 'valid' => true,
-                'message' => 'Valid static QR code',
+                'message' => 'Valid authorized QR code',
                 'qr_info' => [
-                    'qr_id' => 'STATIC_' . strtoupper(str_replace(' ', '_', $qrInfo['location'])),
-                    'qr_type' => 'daily',
-                    'location' => $qrInfo['location'],
+                    'qr_id' => 'STATIC_' . strtoupper(str_replace(' ', '_', $location)),
+                    'qr_type' => $qrInfo['qr_type'] ?? ($qrInfo['type'] ?? 'static'),
+                    'location' => $location,
                     'valid_date' => date('Y-m-d'),
                     'valid_time' => 'all_day',
                     'is_active' => 1
