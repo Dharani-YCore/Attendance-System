@@ -133,7 +133,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             if (authProvider.isLoading) {
               return const Center(child: CircularProgressIndicator());
             }
-
             return SafeArea(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,

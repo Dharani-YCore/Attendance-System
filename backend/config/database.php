@@ -11,7 +11,7 @@ class Database {
 
     public function __construct() {
         $this->host = env('DB_HOST', 'localhost');
-        $this->db_name = env('DB_NAME', 'attendance');
+        $this->db_name = env('DB_NAME', 'attendance_system');
         $this->username = env('DB_USERNAME', 'root');
         $this->password = env('DB_PASSWORD', '');
     }

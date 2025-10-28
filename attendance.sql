@@ -1,17 +1,16 @@
 -- ================================================================
--- ATTENDANCE SYSTEM - COMPLETE DATABASE SCHEMA
+-- ATTENDANCE SYSTEM - COMBINED DATABASE SCHEMA (MOBILE + ADMIN WEB)
 -- ================================================================
--- This file contains all tables, indexes, and initial data needed
--- for the complete attendance system with check-in/check-out functionality
+-- This script creates a single database with all tables used by the
+-- mobile app (users, attendance, reports, QR, holidays, etc.) and the
+-- admin website (admins).
 -- ================================================================
 
--- Create database (uncomment if needed)
--- CREATE DATABASE IF NOT EXISTS attendance_system;
--- USE attendance_system;
+CREATE DATABASE IF NOT EXISTS `attendance_system` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE `attendance_system`;
 
 -- ================================================================
--- TABLE: users
--- Stores user accounts and authentication information
+-- TABLE: users (from mobile app project)
 -- ================================================================
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -24,8 +23,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- ================================================================
--- TABLE: password_resets
--- Stores OTP tokens for password reset functionality
+-- TABLE: password_resets (from mobile app project)
 -- ================================================================
 CREATE TABLE IF NOT EXISTS password_resets (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -40,8 +38,7 @@ CREATE TABLE IF NOT EXISTS password_resets (
 );
 
 -- ================================================================
--- TABLE: attendance
--- Stores attendance records with check-in/check-out support
+-- TABLE: attendance (from mobile app project)
 -- ================================================================
 CREATE TABLE IF NOT EXISTS attendance (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -63,8 +60,7 @@ CREATE TABLE IF NOT EXISTS attendance (
 );
 
 -- ================================================================
--- TABLE: reports
--- Stores daily report summaries with morning/evening times
+-- TABLE: reports (from mobile app project)
 -- ================================================================
 CREATE TABLE IF NOT EXISTS reports (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -81,8 +77,7 @@ CREATE TABLE IF NOT EXISTS reports (
 );
 
 -- ================================================================
--- TABLE: qr_codes
--- Stores QR code information and validation data
+-- TABLE: qr_codes (from mobile app project)
 -- ================================================================
 CREATE TABLE IF NOT EXISTS qr_codes (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -102,8 +97,7 @@ CREATE TABLE IF NOT EXISTS qr_codes (
 );
 
 -- ================================================================
--- TABLE: qr_attendance_logs
--- Stores logs of QR code scans for attendance tracking
+-- TABLE: qr_attendance_logs (from mobile app project)
 -- ================================================================
 CREATE TABLE IF NOT EXISTS qr_attendance_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -120,8 +114,7 @@ CREATE TABLE IF NOT EXISTS qr_attendance_logs (
 );
 
 -- ================================================================
--- TABLE: holidays
--- Stores government and company holidays
+-- TABLE: holidays (from mobile app project)
 -- ================================================================
 CREATE TABLE IF NOT EXISTS holidays (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -134,8 +127,24 @@ CREATE TABLE IF NOT EXISTS holidays (
 );
 
 -- ================================================================
--- INITIAL DATA - Sample holidays for 2025
+-- TABLE: admins (for admin website)
 -- ================================================================
+CREATE TABLE IF NOT EXISTS admins (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  admin_id VARCHAR(64) NOT NULL,
+  email VARCHAR(191) DEFAULT NULL,
+  name VARCHAR(100) DEFAULT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_admin_id (admin_id),
+  UNIQUE KEY uniq_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ================================================================
+-- INITIAL DATA (optional)
+-- ================================================================
+-- Sample holidays for 2025
 INSERT INTO holidays (holiday_date, holiday_name, holiday_type) VALUES
 ('2025-01-01', 'New Year Day', 'National'),
 ('2025-01-26', 'Republic Day', 'National'),
@@ -150,41 +159,30 @@ INSERT INTO holidays (holiday_date, holiday_name, holiday_type) VALUES
 ('2025-12-25', 'Christmas', 'National')
 ON DUPLICATE KEY UPDATE holiday_name = VALUES(holiday_name);
 
+-- Optional sample app user (password: admin123)
+
+
+-- Optional default admin for the admin website (password: admin123)
+-- NOTE: Replace the password hash if desired
+
+
 -- ================================================================
--- DATA MIGRATION FOR EXISTING RECORDS
--- Update existing attendance records to use new check-in/check-out structure
+-- MIGRATIONS / INDEX OPTIMIZATIONS (from mobile app project)
 -- ================================================================
 UPDATE attendance 
 SET check_in_time = time, 
     attendance_type = 'check_in' 
 WHERE check_in_time IS NULL AND time IS NOT NULL;
 
--- Fix missing is_first_login column for existing users
+-- Fix missing is_first_login column for existing users (MySQL 8+ supports IF NOT EXISTS here)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_first_login BOOLEAN DEFAULT FALSE;
 UPDATE users SET is_first_login = FALSE WHERE is_first_login IS NULL;
 
--- ================================================================
--- SAMPLE DATA - Default admin user (Optional)
--- Password: admin123 (hashed with PHP password_hash)
--- ================================================================
-INSERT INTO users (name, email, password, is_first_login) VALUES
-('Administrator', 'admin@attendance.local', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', FALSE)
-ON DUPLICATE KEY UPDATE name = VALUES(name);
-
--- ================================================================
--- PERFORMANCE OPTIMIZATIONS
--- Additional indexes for better query performance
--- ================================================================
-
--- Composite indexes for common queries
+-- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_attendance_user_status ON attendance(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_attendance_date_status ON attendance(date, status);
 CREATE INDEX IF NOT EXISTS idx_reports_date ON reports(report_date);
 
 -- ================================================================
--- SUCCESS MESSAGE
--- ================================================================
--- Database schema creation completed successfully!
--- All tables created with proper indexes and constraints.
--- Login issue should now be resolved with is_first_login column added.
+-- END OF SCHEMA
 -- ================================================================
