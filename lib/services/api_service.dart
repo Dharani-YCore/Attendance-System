@@ -502,6 +502,7 @@ class ApiService {
     }
   }
   
+
   // Authentication helpers
   static Future<bool> isLoggedIn() async {
     try {
