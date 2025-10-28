@@ -29,6 +29,23 @@ try {
         throw new Exception('Invalid QR code format');
     }
     
+    // If env restrictions are configured, only accept QR that matches them
+    $allowedQrId = env('ALLOWED_QR_ID', null);
+    $allowedQrData = env('ALLOWED_QR_DATA', null);
+    $allowedQrHash = env('ALLOWED_QR_HASH', null);
+
+    if ($allowedQrData || $allowedQrHash || $allowedQrId) {
+        $raw = $input['qr_data'];
+        $rawHash = hash('sha256', $raw);
+        $matchesData = $allowedQrData ? hash_equals($allowedQrData, $raw) : false;
+        $matchesHash = $allowedQrHash ? hash_equals($allowedQrHash, $rawHash) : false;
+        $matchesId = $allowedQrId ? (isset($qrData['id']) && hash_equals($allowedQrId, strval($qrData['id']))) : false;
+
+        if (!($matchesData || $matchesHash || $matchesId)) {
+            throw new Exception('This QR code is not authorized for attendance');
+        }
+    }
+    
     // Validate required fields
     $requiredFields = ['type', 'id', 'location', 'date', 'timestamp', 'version'];
     foreach ($requiredFields as $field) {
@@ -53,32 +70,7 @@ try {
     $qrRecord = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$qrRecord) {
-        // QR code doesn't exist, create it
-        $insertQuery = "INSERT INTO qr_codes 
-                       (qr_id, qr_type, location, valid_date, valid_time, qr_data, created_at, is_active) 
-                       VALUES 
-                       (:qr_id, :qr_type, :location, :valid_date, :valid_time, :qr_data, NOW(), 1)";
-        
-        $insertStmt = $db->prepare($insertQuery);
-        $insertStmt->bindParam(':qr_id', $qrData['id']);
-        $insertStmt->bindParam(':qr_type', $qrData['type']);
-        $insertStmt->bindParam(':location', $qrData['location']);
-        $insertStmt->bindParam(':valid_date', $qrData['date']);
-        $insertStmt->bindParam(':valid_time', $qrData['time']);
-        $insertStmt->bindParam(':qr_data', $input['qr_data']);
-        
-        if (!$insertStmt->execute()) {
-            throw new Exception('Failed to register QR code');
-        }
-        
-        $qrRecord = [
-            'qr_id' => $qrData['id'],
-            'qr_type' => $qrData['type'],
-            'location' => $qrData['location'],
-            'valid_date' => $qrData['date'],
-            'valid_time' => $qrData['time'],
-            'is_active' => 1
-        ];
+        throw new Exception('QR code not found or inactive');
     }
     
     // Validate QR code constraints

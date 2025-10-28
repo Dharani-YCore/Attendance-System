@@ -9,7 +9,7 @@ class ApiService {
   // For emulator: use 10.0.2.2
   // For physical device: use your computer's local IP (e.g., 192.168.1.100)
   // To find your IP: Run 'ipconfig' on Windows and look for IPv4 Address
-  static const String _localIpAddress = '192.168.118.191'; // For physical device
+  static const String _localIpAddress = '192.168.0.8'; // For physical device
   static const String _emulatorIpAddress = '10.0.2.2'; // For Android emulator
   
   // Use Android emulator loopback when running on Android; use 127.0.0.1 for Web/others
