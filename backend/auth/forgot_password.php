@@ -67,7 +67,7 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 }
 
 // Ensure the user's email column is not NULL or empty before sending OTP
-$query = "SELECT id, name, email FROM users WHERE email = ? AND email IS NOT NULL AND email <> '' LIMIT 0,1";
+$query = "SELECT id, name, email FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) AND email IS NOT NULL AND email <> '' LIMIT 0,1";
 $stmt = $db->prepare($query);
 $stmt->bindValue(1, $email);
 $stmt->execute();
@@ -100,12 +100,24 @@ if ($num > 0) {
                 "message" => "OTP sent to your email address."
             ));
         } else {
-            http_response_code(500);
-            echo json_encode(array(
-                "success" => false,
-                "message" => "Unable to send OTP. Please try again later.",
-                "error" => $emailResult['message']
-            ));
+            // Development-friendly fallback: if email isn't configured, still return the OTP
+            $devMode = env('DEV_MODE', 'true');
+            if ($devMode === 'true') {
+                error_log('[DEV_MODE] Forgot password OTP for ' . $data->email . ' is: ' . $otp);
+                http_response_code(200);
+                echo json_encode(array(
+                    "success" => true,
+                    "message" => "OTP generated (email not sent in DEV_MODE).",
+                    "otp" => $otp
+                ));
+            } else {
+                http_response_code(500);
+                echo json_encode(array(
+                    "success" => false,
+                    "message" => "Unable to send OTP. Please try again later.",
+                    "error" => $emailResult['message']
+                ));
+            }
         }
     } else {
         http_response_code(500);
@@ -115,10 +127,15 @@ if ($num > 0) {
         ));
     }
 } else {
-    http_response_code(404);
+    // Do not reveal whether the email exists (security best practice)
+    $devMode = env('DEV_MODE', 'true');
+    if ($devMode === 'true') {
+        error_log('[DEV_MODE] Forgot password requested for non-existing email: ' . $email);
+    }
+    http_response_code(200);
     echo json_encode(array(
-        "success" => false,
-        "message" => "User not found or email not set for this account."
+        "success" => true,
+        "message" => "If an account exists for this email, an OTP has been sent."
     ));
 }
 ?>

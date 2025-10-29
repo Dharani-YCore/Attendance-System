@@ -33,14 +33,25 @@ $data = json_decode(file_get_contents("php://input"));
 
 // Make sure data is not empty
 if (!empty($data->email) && !empty($data->password)) {
+    // Normalize email for lookup
+    $normalizedEmail = strtolower(trim($data->email));
+
+    // DEV logging: which DB and which email are being used
+    try {
+        $currentDb = $db->query('SELECT DATABASE()')->fetchColumn();
+        error_log('[LOGIN] Using DB: ' . $currentDb . ' | Email: ' . $normalizedEmail);
+    } catch (Exception $e) {
+        error_log('[LOGIN] DB name fetch failed: ' . $e->getMessage());
+    }
+
     // Check if user exists (include is_first_login field)
-    $query = "SELECT id, name, email, password, is_first_login FROM users WHERE email = ? LIMIT 0,1";
-    
+    $query = "SELECT id, name, email, password, is_first_login FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 0,1";
     $stmt = $db->prepare($query);
-    $stmt->bindParam(1, $data->email);
+    $stmt->bindValue(1, $normalizedEmail);
     $stmt->execute();
     
     $num = $stmt->rowCount();
+    error_log('[LOGIN] Row count for email lookup: ' . $num);
     
     if ($num > 0) {
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
