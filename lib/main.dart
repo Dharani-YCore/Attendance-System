@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
+import 'dart:io' show Platform;
+import 'services/api_service.dart';
 import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/attendance_provider.dart';
@@ -16,6 +19,10 @@ import 'screens/daily_report_screen.dart';
 import 'screens/monthly_report_screen.dart';
 
 void main() {
+  const devBaseUrl = String.fromEnvironment('DEV_BASE_URL');
+  if (kDebugMode && devBaseUrl.isNotEmpty) {
+    ApiService.setDevelopmentBaseUrl(devBaseUrl);
+  }
   runApp(const MyApp());
 }
 
