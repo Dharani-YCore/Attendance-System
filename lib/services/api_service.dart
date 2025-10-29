@@ -5,39 +5,41 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  // ⚙️ CONFIGURATION: Change this IP for physical Android devices
-  // For emulator: use 10.0.2.2
-  // For physical device: use your computer's local IP (e.g., 192.168.1.100)
-  // To find your IP: Run 'ipconfig' on Windows and look for IPv4 Address
-  static const String _localIpAddress = '192.168.0.8'; // For physical device
-  static const String _emulatorIpAddress = '10.0.2.2'; // For Android emulator
+  // Static configuration for production
+  static const String _productionBaseUrl = 'https://your-static-ip-or-domain.com/Attendance-System-Website/api';
   
-  // Use Android emulator loopback when running on Android; use 127.0.0.1 for Web/others
+  // Development configuration (override in main.dart for development)
+  static String _developmentBaseUrl = 'http://192.168.1.5/Attendance-System/backend';
+  
+  // Get base URL based on environment
   static String get baseUrl {
-    if (kIsWeb) {
-      // When running Flutter Web on the same PC as XAMPP
-      return 'http://127.0.0.1/Attendance-System/backend';
+    // In production, always use the production URL
+    if (const bool.fromEnvironment('dart.vm.product')) {
+      return _productionBaseUrl;
     }
-    try {
-      if (Platform.isAndroid) {
-        // Use a different IP for emulator vs. physical device.
-        // For simplicity in development, we often just hardcode the developer machine's IP.
-        // Ensure your phone and computer are on the same Wi-Fi network.
-        return 'http://$_localIpAddress/Attendance-System/backend';
-      }
-    } catch (_) {
-      // Platform may be unavailable; fall back to localhost
-    }
-    return 'http://localhost/Attendance-System/backend';
+    
+    // In development, use the development URL which can be overridden
+    return _developmentBaseUrl;
+  }
+  
+  // Method to update the base URL at runtime (useful for development)
+  static void setDevelopmentBaseUrl(String url) {
+    _developmentBaseUrl = url.endsWith('/') ? url : '$url/';
   }
   
   // Authentication endpoints
   static Future<Map<String, dynamic>> login(String email, String password) async {
     try {
-      print('🔗 API: Sending login request to $baseUrl/auth/login.php');
+      // Ensure the URL is properly formatted
+      final loginUrl = '${baseUrl.endsWith('/') ? baseUrl : '$baseUrl/'}auth/login.php';
+      print('🔗 API: Sending login request to $loginUrl');
+      
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/login.php'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse(loginUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: json.encode({
           'email': email,
           'password': password,
@@ -45,9 +47,13 @@ class ApiService {
       ).timeout(
         const Duration(seconds: 30),
         onTimeout: () {
-          throw Exception('Connection timeout. Please check your network configuration.');
+          throw Exception('Connection timeout. Please check your internet connection and try again.');
         },
       );
+      
+      // Log response for debugging
+      print('🔵 Response status: ${response.statusCode}');
+      print('🔵 Response body: ${response.body}');
       
       print('📡 API: Response status: ${response.statusCode}');
       print('📄 API: Response body: ${response.body}');
@@ -77,9 +83,15 @@ class ApiService {
   
   static Future<Map<String, dynamic>> register(String name, String email, String password) async {
     try {
+      final registerUrl = '${baseUrl.endsWith('/') ? baseUrl : '$baseUrl/'}auth/register.php';
+      print('🔗 API: Sending register request to $registerUrl');
+      
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/register.php'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse(registerUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: json.encode({
           'name': name,
           'email': email,
@@ -88,9 +100,13 @@ class ApiService {
       ).timeout(
         const Duration(seconds: 30),
         onTimeout: () {
-          throw Exception('Connection timeout. Please check your network configuration.');
+          throw Exception('Connection timeout. Please check your internet connection and try again.');
         },
       );
+      
+      // Log response for debugging
+      print('🔵 Register response status: ${response.statusCode}');
+      print('🔵 Register response body: ${response.body}');
       
       // Parse response for both success and error cases
       final data = json.decode(response.body);
@@ -101,11 +117,15 @@ class ApiService {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('token', data['token']);
           await prefs.setString('user', json.encode(data['user']));
+          print('✅ User registered and logged in successfully');
         }
+        return data; // Return the parsed response data
+      } else {
+        return {
+          'success': false,
+          'message': 'Server error: ${response.statusCode}'
+        };
       }
-      
-      // Return the parsed data which includes error messages from backend
-      return data;
     } catch (e) {
       return {
         'success': false,
@@ -121,10 +141,15 @@ class ApiService {
     String confirmPassword,
   ) async {
     try {
-      print('🔗 API: Setting password for $email');
+      final setPasswordUrl = '${baseUrl.endsWith('/') ? baseUrl : '$baseUrl/'}auth/set_password.php';
+      print('🔗 API: Setting password for $email at $setPasswordUrl');
+      
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/set_password.php'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse(setPasswordUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: json.encode({
           'email': email,
           'old_password': oldPassword,
@@ -133,8 +158,8 @@ class ApiService {
         }),
       );
       
-      print('📡 API: Response status: ${response.statusCode}');
-      print('📄 API: Response body: ${response.body}');
+      print('🔵 Set password response status: ${response.statusCode}');
+      print('🔵 Set password response body: ${response.body}');
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -144,10 +169,9 @@ class ApiService {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('token', data['token']);
           await prefs.setString('user', json.encode(data['user']));
-          print('✅ API: Token and user data saved after password change');
+          print('✅ Password changed successfully');
         }
-        
-        return data;
+        return data; // Return the parsed response data
       } else {
         return {
           'success': false,
@@ -165,24 +189,31 @@ class ApiService {
   
   static Future<Map<String, dynamic>> forgotPassword(String email) async {
     try {
-      final url = '$baseUrl/auth/forgot_password.php';
-      print('🔄 Forgot password for: $email');
-      print('🌐 API URL: $url');
+      final forgotPasswordUrl = '${baseUrl.endsWith('/') ? baseUrl : '$baseUrl/'}auth/forgot_password.php';
+      print('🔗 API: Forgot password request to $forgotPasswordUrl');
+      print('📧 Email: $email');
+      
       final response = await http.post(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse(forgotPasswordUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: json.encode({'email': email}),
       ).timeout(
         const Duration(seconds: 30),
         onTimeout: () {
-          throw Exception('Connection timeout. Please check your network configuration.');
+          throw Exception('Connection timeout. Please check your internet connection and try again.');
         },
       );
-      print('📡 API: Response status: ${response.statusCode}');
-      print('📄 API: Response body: ${response.body}');
+      
+      print('🔵 Forgot password response status: ${response.statusCode}');
+      print('🔵 Forgot password response body: ${response.body}');
       
       if (response.statusCode == 200) {
-        return json.decode(response.body);
+        final data = json.decode(response.body);
+        print('📩 Password reset email sent: ${data['success']}');
+        return data;
       } else {
         return {
           'success': false,
@@ -200,17 +231,29 @@ class ApiService {
   
   static Future<Map<String, dynamic>> verifyOTP(String email, String otp) async {
     try {
+      final verifyOtpUrl = '${baseUrl.endsWith('/') ? baseUrl : '$baseUrl/'}auth/verify_otp.php';
+      print('🔗 API: Verifying OTP at $verifyOtpUrl');
+      print('📧 Email: $email, OTP: $otp');
+      
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/verify_otp.php'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse(verifyOtpUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: json.encode({
           'email': email,
           'otp': otp,
         }),
       );
       
+      print('🔵 Verify OTP response status: ${response.statusCode}');
+      print('🔵 Verify OTP response body: ${response.body}');
+      
       if (response.statusCode == 200) {
-        return json.decode(response.body);
+        final data = json.decode(response.body);
+        print('✅ OTP verification result: ${data['success']}');
+        return data;
       } else {
         return {
           'success': false,
@@ -227,17 +270,28 @@ class ApiService {
   
   static Future<Map<String, dynamic>> resetPassword(String email, String password) async {
     try {
+      final resetPasswordUrl = '${baseUrl.endsWith('/') ? baseUrl : '$baseUrl/'}auth/reset_password.php';
+      print('🔗 API: Resetting password at $resetPasswordUrl');
+      
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/reset_password.php'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse(resetPasswordUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: json.encode({
           'email': email,
           'password': password,
         }),
       );
       
+      print('🔵 Reset password response status: ${response.statusCode}');
+      print('🔵 Reset password response body: ${response.body}');
+      
       if (response.statusCode == 200) {
-        return json.decode(response.body);
+        final data = json.decode(response.body);
+        print('✅ Password reset successful: ${data['success']}');
+        return data;
       } else {
         return {
           'success': false,
