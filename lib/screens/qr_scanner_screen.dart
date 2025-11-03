@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../providers/auth_provider.dart';
 import '../providers/attendance_provider.dart';
 import '../services/api_service.dart';
@@ -21,11 +23,14 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   String? checkInTime;
   String? actionType; // 'check_in' or 'check_out'
   MobileScannerController? cameraController;
+  Position? currentLocation;
+  bool locationPermissionGranted = false;
 
   @override
   void initState() {
     super.initState();
     _checkAuthenticationOnInit();
+    _requestLocationPermission();
     if (!kIsWeb) {
       cameraController = MobileScannerController();
     }
@@ -35,6 +40,145 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     // Don't do aggressive auth check here - let the user try to scan first
     // The auth check will happen in _processAttendance when they actually scan
     print('🔍 QR Scanner initialized');
+  }
+
+  Future<void> _requestLocationPermission() async {
+    print('📍 Requesting location permission...');
+    
+    // Check if location services are enabled
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      print('⚠️ Location services are disabled');
+      if (mounted) {
+        _showLocationServiceDialog();
+      }
+      return;
+    }
+
+    // Request permission
+    var status = await Permission.location.request();
+    
+    if (status.isGranted) {
+      print('✅ Location permission granted');
+      setState(() {
+        locationPermissionGranted = true;
+      });
+      await _getCurrentLocation();
+    } else if (status.isDenied) {
+      print('❌ Location permission denied');
+      if (mounted) {
+        _showPermissionDeniedDialog();
+      }
+    } else if (status.isPermanentlyDenied) {
+      print('🚫 Location permission permanently denied');
+      if (mounted) {
+        _showPermissionPermanentlyDeniedDialog();
+      }
+    }
+  }
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      print('📍 Getting current location...');
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      setState(() {
+        currentLocation = position;
+      });
+      print('✅ Location obtained: ${position.latitude}, ${position.longitude}');
+    } catch (e) {
+      print('❌ Error getting location: $e');
+    }
+  }
+
+  void _showLocationServiceDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Row(
+          children: [
+            Icon(Icons.location_off, color: Colors.orange, size: 30),
+            SizedBox(width: 10),
+            Text('Location Services'),
+          ],
+        ),
+        content: const Text(
+          'Location services are disabled. Please enable location services in your device settings to mark attendance with location tracking.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPermissionDeniedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Row(
+          children: [
+            Icon(Icons.location_off, color: Colors.orange, size: 30),
+            SizedBox(width: 10),
+            Text('Location Permission'),
+          ],
+        ),
+        content: const Text(
+          'Location permission is required to mark attendance. This helps verify your presence at the office. Please grant location permission when prompted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _requestLocationPermission();
+            },
+            child: const Text('Grant Permission'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPermissionPermanentlyDeniedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Row(
+          children: [
+            Icon(Icons.location_off, color: Colors.red, size: 30),
+            SizedBox(width: 10),
+            Text('Location Permission'),
+          ],
+        ),
+        content: const Text(
+          'Location permission has been permanently denied. Please enable it in your device settings to mark attendance with location tracking.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              openAppSettings();
+              Navigator.of(context).pop();
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -446,6 +590,23 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       print('🚪 This will be a CHECK-OUT');
     }
 
+    // Get current location before processing attendance
+    if (!locationPermissionGranted || currentLocation == null) {
+      print('⚠️ Location not available, requesting permission...');
+      await _requestLocationPermission();
+      
+      // If still no location after request, show warning
+      if (currentLocation == null) {
+        if (mounted) {
+          _showLocationWarningDialog();
+        }
+        setState(() {
+          isProcessing = false;
+        });
+        return;
+      }
+    }
+
     // Handle different types of QR codes
     String attendanceData = qrData;
     
@@ -454,19 +615,37 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       final qrJson = json.decode(qrData);
       
       if (qrJson['type'] == 'office_attendance' && qrJson['static'] == true) {
-        // This is a static office QR code - create attendance data with current date
+        // This is a static office QR code - create attendance data with current date and location
         attendanceData = json.encode({
           'type': 'office_attendance',
           'location': qrJson['location'],
           'company': qrJson['company'],
           'date': DateTime.now().toIso8601String().split('T')[0], // Current date
           'time': DateTime.now().toIso8601String().split('T')[1].split('.')[0], // Current time
-          'static': true // Keep the original static field
+          'static': true, // Keep the original static field
+          'user_latitude': currentLocation?.latitude,
+          'user_longitude': currentLocation?.longitude,
+          'location_accuracy': currentLocation?.accuracy
         });
+      } else {
+        // Regular QR code - add location data
+        qrJson['user_latitude'] = currentLocation?.latitude;
+        qrJson['user_longitude'] = currentLocation?.longitude;
+        qrJson['location_accuracy'] = currentLocation?.accuracy;
+        attendanceData = json.encode(qrJson);
       }
     } catch (e) {
-      // If JSON parsing fails, treat as regular QR code
+      // If JSON parsing fails, treat as regular QR code and add location
+      attendanceData = json.encode({
+        'qr_data': qrData,
+        'user_latitude': currentLocation?.latitude,
+        'user_longitude': currentLocation?.longitude,
+        'location_accuracy': currentLocation?.accuracy,
+        'timestamp': DateTime.now().toIso8601String()
+      });
     }
+    
+    print('📍 Attendance data with location: $attendanceData');
     
     try {
       final success = await attendanceProvider.markAttendance(
@@ -829,6 +1008,40 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               Navigator.of(context).pop(); // Go back to dashboard
             },
             child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLocationWarningDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Row(
+          children: [
+            Icon(Icons.location_off, color: Colors.orange, size: 30),
+            SizedBox(width: 10),
+            Text('Location Required'),
+          ],
+        ),
+        content: const Text(
+          'Location permission is required to mark attendance. This helps verify your presence at the office and will be shared with the admin.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _requestLocationPermission();
+            },
+            child: const Text('Grant Permission'),
           ),
         ],
       ),
