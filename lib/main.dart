@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
+import 'services/api_service.dart';
 import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/attendance_provider.dart';
@@ -14,8 +16,13 @@ import 'screens/qr_scanner_screen.dart';
 import 'screens/attendance_history_screen.dart';
 import 'screens/daily_report_screen.dart';
 import 'screens/monthly_report_screen.dart';
+import 'screens/biometric_auth_screen.dart';
 
 void main() {
+  const devBaseUrl = String.fromEnvironment('DEV_BASE_URL');
+  if (kDebugMode && devBaseUrl.isNotEmpty) {
+    ApiService.setDevelopmentBaseUrl(devBaseUrl);
+  }
   runApp(const MyApp());
 }
 
@@ -64,13 +71,43 @@ class AuthWrapper extends StatefulWidget {
   State<AuthWrapper> createState() => _AuthWrapperState();
 }
 
-class _AuthWrapperState extends State<AuthWrapper> {
+class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
   bool _initializing = true;
+  bool _isAuthenticated = false;
+  bool _needsBiometricAuth = false;
+  AppLifecycleState? _lastLifecycleState;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeApp();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    // When app resumes from background, require biometric authentication again
+    // Only trigger if transitioning from paused/inactive to resumed (not from resumed to resumed)
+    if (state == AppLifecycleState.resumed && 
+        _lastLifecycleState != null && 
+        _lastLifecycleState != AppLifecycleState.resumed) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (authProvider.isLoggedIn && _isAuthenticated) {
+        setState(() {
+          _isAuthenticated = false;
+          _needsBiometricAuth = true;
+        });
+      }
+    }
+    _lastLifecycleState = state;
   }
   
   void _initializeApp() async {
@@ -86,6 +123,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
         if (mounted) {
           setState(() {
             _initializing = false;
+            // If user is logged in, require biometric authentication
+            if (authProvider.isLoggedIn) {
+              _needsBiometricAuth = true;
+            }
           });
         }
       } catch (e) {
@@ -97,6 +138,27 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
       }
     });
+  }
+
+  void _onBiometricAuthenticated() {
+    if (mounted) {
+      // Use a post frame callback to ensure state is updated after widget rebuild
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _isAuthenticated = true;
+            _needsBiometricAuth = false;
+          });
+        }
+      });
+    }
+  }
+
+  void _onBiometricFailed() {
+    // If biometric fails, user can try again or we could log them out
+    // For now, just allow retry
+    print('Biometric authentication failed');
+    // Don't change state on failure - let user try again
   }
 
   @override
@@ -112,9 +174,34 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
-        return authProvider.isLoggedIn 
-            ? const DashboardScreen() 
-            : const LoginScreen();
+        // If user is not logged in, show login screen
+        if (!authProvider.isLoggedIn) {
+          // Reset authentication state when logged out
+          if (_isAuthenticated || _needsBiometricAuth) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                setState(() {
+                  _isAuthenticated = false;
+                  _needsBiometricAuth = false;
+                });
+              }
+            });
+          }
+          return const LoginScreen();
+        }
+
+        // If user is logged in but needs biometric authentication
+        // Only show if we actually need it and haven't authenticated yet
+        if (_needsBiometricAuth && !_isAuthenticated) {
+          return BiometricAuthScreen(
+            key: const ValueKey('biometric_auth'), // Add key to prevent recreation
+            onAuthenticated: _onBiometricAuthenticated,
+            onFailed: _onBiometricFailed,
+          );
+        }
+
+        // User is authenticated, show dashboard
+        return const DashboardScreen();
       },
     );
   }
