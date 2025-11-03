@@ -20,9 +20,9 @@ curl -s -I http://localhost/Attendance-System/ >nul
 if %errorlevel% == 0 (
     echo ✓ Server started successfully!
     echo ✓ Local access: http://localhost/Attendance-System/
-    echo ✓ Network access: http://192.168.0.15/Attendance-System/
+    echo ✓ Network access: http://192.168.1.7/Attendance-System/
     echo.
-    echo Your phone should connect to: 192.168.0.15
+    echo Your phone should connect to: 192.168.1.7
     echo Make sure both devices are on the same WiFi network.
 ) else (
     echo ✗ Server failed to start. Check XAMPP Control Panel.

@@ -1,6 +1,7 @@
 <?php
 include_once '../cors.php';
 include_once '../config/database.php';
+include_once '../services/geocoding_service.php';
 
 // Set timezone to India Standard Time (IST)
 date_default_timezone_set('Asia/Kolkata');
@@ -32,6 +33,7 @@ if (!empty($data->user_id) && !empty($data->status)) {
     $latitude = null;
     $longitude = null;
     $locationAccuracy = null;
+    $address = null;
     
     // If QR data is provided, validate it and extract location
     if (isset($data->qr_data)) {
@@ -50,6 +52,14 @@ if (!empty($data->user_id) && !empty($data->status)) {
             $latitude = $qrInfo['user_latitude'];
             $longitude = $qrInfo['user_longitude'];
             $locationAccuracy = isset($qrInfo['location_accuracy']) ? $qrInfo['location_accuracy'] : null;
+            
+            // Get human-readable address with Plus Code from coordinates
+            try {
+                $geocoder = new GeocodingService();
+                $address = $geocoder->getAddressWithPlusCode($latitude, $longitude);
+            } catch (Exception $e) {
+                error_log("Failed to geocode location: " . $e->getMessage());
+            }
         }
         
         // Log QR scan with location
@@ -76,14 +86,15 @@ if (!empty($data->user_id) && !empty($data->status)) {
             $totalHours = calculateTotalHours($checkInTime, $checkOutTime);
             
             // Update attendance record with check-out time and location
-            $query = "UPDATE attendance SET check_out_time = ?, total_hours = ?, attendance_type = 'full_day', check_out_latitude = ?, check_out_longitude = ?, location_accuracy = ? WHERE id = ?";
+            $query = "UPDATE attendance SET check_out_time = ?, total_hours = ?, attendance_type = 'full_day', check_out_latitude = ?, check_out_longitude = ?, check_out_address = ?, location_accuracy = ? WHERE id = ?";
             $stmt = $db->prepare($query);
             $stmt->bindParam(1, $checkOutTime);
             $stmt->bindParam(2, $totalHours);
             $stmt->bindParam(3, $latitude);
             $stmt->bindParam(4, $longitude);
-            $stmt->bindParam(5, $locationAccuracy);
-            $stmt->bindParam(6, $existingAttendance['id']);
+            $stmt->bindParam(5, $address);
+            $stmt->bindParam(6, $locationAccuracy);
+            $stmt->bindParam(7, $existingAttendance['id']);
             
             if ($stmt->execute()) {
                 // Update reports table with check-out time (if columns exist)
@@ -139,7 +150,7 @@ if (!empty($data->user_id) && !empty($data->status)) {
         }
         
         // Insert check-in attendance record with location
-        $query = "INSERT INTO attendance SET user_id=:user_id, date=:date, time=:time, check_in_time=:check_in_time, status=:status, attendance_type='check_in', check_in_latitude=:latitude, check_in_longitude=:longitude, location_accuracy=:accuracy";
+        $query = "INSERT INTO attendance SET user_id=:user_id, date=:date, time=:time, check_in_time=:check_in_time, status=:status, attendance_type='check_in', check_in_latitude=:latitude, check_in_longitude=:longitude, check_in_address=:address, location_accuracy=:accuracy";
         $stmt = $db->prepare($query);
         
         $stmt->bindParam(":user_id", $data->user_id);
@@ -149,6 +160,7 @@ if (!empty($data->user_id) && !empty($data->status)) {
         $stmt->bindParam(":status", $status);
         $stmt->bindParam(":latitude", $latitude);
         $stmt->bindParam(":longitude", $longitude);
+        $stmt->bindParam(":address", $address);
         $stmt->bindParam(":accuracy", $locationAccuracy);
         
         if ($stmt->execute()) {
@@ -243,35 +255,64 @@ function validateQRCode($qrData, $db) {
         
         // Check if QR code exists in database (for non-static QR codes)
         $qr_id = isset($qrInfo['id']) ? $qrInfo['id'] : null;
-        if (!$qr_id) {
-            return ['valid' => false, 'message' => 'QR code missing ID field'];
-        }
         
-        $query = "SELECT * FROM qr_codes WHERE qr_id = ? AND is_active = 1";
-        $stmt = $db->prepare($query);
-        $stmt->bindParam(1, $qr_id);
-        $stmt->execute();
-        
-        $qrRecord = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if (!$qrRecord) {
-            return ['valid' => false, 'message' => 'QR code not found or inactive'];
-        }
-        
-        // Validate date
-        $today = date('Y-m-d');
-        if ($qrRecord['valid_date'] !== $today) {
-            if ($qrRecord['valid_date'] < $today) {
-                return ['valid' => false, 'message' => 'QR code has expired'];
-            } else {
-                return ['valid' => false, 'message' => 'QR code is not valid yet'];
+        // If QR has an ID, try to validate it against the database
+        if ($qr_id) {
+            $query = "SELECT * FROM qr_codes WHERE qr_id = ? AND is_active = 1";
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(1, $qr_id);
+            $stmt->execute();
+            
+            $qrRecord = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($qrRecord) {
+                // Validate date
+                $today = date('Y-m-d');
+                if ($qrRecord['valid_date'] !== $today) {
+                    if ($qrRecord['valid_date'] < $today) {
+                        return ['valid' => false, 'message' => 'QR code has expired'];
+                    } else {
+                        return ['valid' => false, 'message' => 'QR code is not valid yet'];
+                    }
+                }
+                
+                return [
+                    'valid' => true, 
+                    'message' => 'Valid QR code',
+                    'qr_info' => $qrRecord
+                ];
             }
         }
         
+        // If no ID or not found in database, check if it's a static office QR code
+        if (isset($qrInfo['type']) && $qrInfo['type'] === 'office_attendance') {
+            $location = $qrInfo['location'] ?? 'Office';
+            return [
+                'valid' => true,
+                'message' => 'Valid office QR code',
+                'qr_info' => [
+                    'qr_id' => 'STATIC_' . strtoupper(str_replace(' ', '_', $location)),
+                    'qr_type' => 'static',
+                    'location' => $location,
+                    'valid_date' => date('Y-m-d'),
+                    'valid_time' => 'all_day',
+                    'is_active' => 1
+                ]
+            ];
+        }
+        
+        // If no environment restrictions and no database entry, allow any QR code
         return [
-            'valid' => true, 
+            'valid' => true,
             'message' => 'Valid QR code',
-            'qr_info' => $qrRecord
+            'qr_info' => [
+                'qr_id' => 'GENERIC_' . substr(md5($qrData), 0, 8),
+                'qr_type' => 'generic',
+                'location' => $qrInfo['location'] ?? 'Unknown Location',
+                'valid_date' => date('Y-m-d'),
+                'valid_time' => 'all_day',
+                'is_active' => 1
+            ]
         ];
         
     } catch (Exception $e) {
