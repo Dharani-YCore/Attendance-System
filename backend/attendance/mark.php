@@ -53,10 +53,11 @@ if (!empty($data->user_id) && !empty($data->status)) {
             $longitude = $qrInfo['user_longitude'];
             $locationAccuracy = isset($qrInfo['location_accuracy']) ? $qrInfo['location_accuracy'] : null;
             
-            // Get human-readable address with Plus Code from coordinates
+            // Get detailed human-readable address from coordinates
             try {
                 $geocoder = new GeocodingService();
-                $address = $geocoder->getAddressWithPlusCode($latitude, $longitude);
+                // Use detailed address format without Plus Code prefix for better readability
+                $address = $geocoder->reverseGeocode($latitude, $longitude);
             } catch (Exception $e) {
                 error_log("Failed to geocode location: " . $e->getMessage());
             }

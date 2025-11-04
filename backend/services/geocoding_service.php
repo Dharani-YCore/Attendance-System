@@ -64,7 +64,7 @@ class GeocodingService {
     }
     
     /**
-     * Format address from Nominatim response
+     * Format address from Nominatim response with detailed components
      * 
      * @param array $address Address components
      * @param string|null $displayName Full display name as fallback
@@ -73,27 +73,45 @@ class GeocodingService {
     private function formatAddress($address, $displayName = null) {
         $parts = [];
         
-        // Building number and street
+        // House/Building number and name
         if (isset($address['house_number'])) {
             $parts[] = $address['house_number'];
         }
         
-        // Road/Street
+        // Building name or shop
+        if (isset($address['building'])) {
+            $parts[] = $address['building'];
+        }
+        
+        // Amenity or landmark
+        if (isset($address['amenity'])) {
+            $parts[] = $address['amenity'];
+        }
+        
+        // Road/Street name
         $road = $address['road'] ?? $address['street'] ?? $address['pedestrian'] ?? null;
         if ($road) {
             $parts[] = $road;
         }
         
-        // Neighborhood or suburb
-        $area = $address['neighbourhood'] ?? $address['suburb'] ?? $address['quarter'] ?? $address['hamlet'] ?? null;
-        if ($area) {
-            $parts[] = $area;
+        // Suburb/Neighbourhood/Quarter
+        $suburb = $address['suburb'] ?? $address['neighbourhood'] ?? $address['quarter'] ?? $address['hamlet'] ?? $address['residential'] ?? null;
+        if ($suburb) {
+            $parts[] = $suburb;
         }
         
         // City/Town/Village
         $city = $address['city'] ?? $address['town'] ?? $address['village'] ?? $address['municipality'] ?? null;
         if ($city) {
             $parts[] = $city;
+        }
+        
+        // District
+        if (isset($address['county']) || isset($address['state_district'])) {
+            $district = $address['county'] ?? $address['state_district'];
+            if ($district && $district !== $city) {
+                $parts[] = $district;
+            }
         }
         
         // State
@@ -106,18 +124,27 @@ class GeocodingService {
             $parts[] = $address['postcode'];
         }
         
+        // Country (optional, usually not needed for local addresses)
+        // if (isset($address['country']) && $address['country'] !== 'India') {
+        //     $parts[] = $address['country'];
+        // }
+        
         // If we have parts, join them
         if (!empty($parts)) {
             return implode(', ', $parts);
         }
         
-        // Fallback to display name (simplified version)
+        // Fallback to display name (use more parts for detailed address)
         if ($displayName) {
-            // Try to extract the most relevant parts from display name
+            // Try to extract relevant parts from display name
             $displayParts = explode(',', $displayName);
-            $relevantParts = array_slice($displayParts, 0, 4); // Take first 4 parts
-            $simplified = implode(',', $relevantParts);
-            return strlen($simplified) > 200 ? substr($simplified, 0, 197) . '...' : $simplified;
+            // Remove country if it's the last part and is "India"
+            if (count($displayParts) > 1 && trim(end($displayParts)) === 'India') {
+                array_pop($displayParts);
+            }
+            $relevantParts = array_slice($displayParts, 0, 6); // Take first 6 parts for detailed address
+            $simplified = implode(', ', array_map('trim', $relevantParts));
+            return strlen($simplified) > 500 ? substr($simplified, 0, 497) . '...' : $simplified;
         }
         
         return "Location: " . ($address['country'] ?? 'Unknown');
@@ -210,19 +237,25 @@ class GeocodingService {
     
     /**
      * Get formatted address with Plus Code
-     * Format: "XXXX+XX Area, City, State"
+     * Format: "Detailed Address (Plus Code: XXXX+XX)"
      * 
      * @param float $latitude
      * @param float $longitude
+     * @param bool $prependPlusCode If true, Plus Code comes first. If false, it's appended.
      * @return string|null
      */
-    public function getAddressWithPlusCode($latitude, $longitude) {
+    public function getAddressWithPlusCode($latitude, $longitude, $prependPlusCode = false) {
         $plusCode = $this->generatePlusCode($latitude, $longitude);
         $address = $this->reverseGeocode($latitude, $longitude);
         
         if ($address) {
-            // Prepend Plus Code to address
-            return $plusCode . ' ' . $address;
+            if ($prependPlusCode) {
+                // Format: "XXXX+XX Address"
+                return $plusCode . ' ' . $address;
+            } else {
+                // Format: "Address (Plus Code: XXXX+XX)"
+                return $address . ' (Plus Code: ' . $plusCode . ')';
+            }
         }
         
         return $plusCode;

@@ -42,10 +42,10 @@ try {
         $updates = [];
         $params = [];
         
-        // Process check-in address with Plus Code
+        // Process check-in address with detailed format
         if ($record['check_in_latitude'] !== null && $record['check_in_longitude'] !== null) {
             echo "Processing record #$id check-in location... ";
-            $address = $geocoder->getAddressWithPlusCode(
+            $address = $geocoder->reverseGeocode(
                 $record['check_in_latitude'], 
                 $record['check_in_longitude']
             );
@@ -53,7 +53,7 @@ try {
             if ($address) {
                 $updates[] = "check_in_address = ?";
                 $params[] = $address;
-                echo "✓ Got address: " . substr($address, 0, 60) . "...\n";
+                echo "✓ Got detailed address: " . substr($address, 0, 80) . (strlen($address) > 80 ? "..." : "") . "\n";
             } else {
                 echo "✗ Failed to get address\n";
                 $failed++;
@@ -63,10 +63,10 @@ try {
             sleep(1);
         }
         
-        // Process check-out address with Plus Code
+        // Process check-out address with detailed format
         if ($record['check_out_latitude'] !== null && $record['check_out_longitude'] !== null) {
             echo "Processing record #$id check-out location... ";
-            $address = $geocoder->getAddressWithPlusCode(
+            $address = $geocoder->reverseGeocode(
                 $record['check_out_latitude'], 
                 $record['check_out_longitude']
             );
@@ -74,7 +74,7 @@ try {
             if ($address) {
                 $updates[] = "check_out_address = ?";
                 $params[] = $address;
-                echo "✓ Got address: " . substr($address, 0, 60) . "...\n";
+                echo "✓ Got detailed address: " . substr($address, 0, 80) . (strlen($address) > 80 ? "..." : "") . "\n";
             } else {
                 echo "✗ Failed to get address\n";
                 $failed++;
