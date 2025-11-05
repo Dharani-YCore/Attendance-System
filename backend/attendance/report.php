@@ -17,7 +17,7 @@ $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : date('Y-m-01');
 $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : date('Y-m-d'); // Today
 
 if (!empty($user_id)) {
-    // Get detailed attendance report with check-in/check-out times
+    // Get detailed attendance report with check-in/check-out times and locations
     $query = "SELECT 
                 a.date,
                 a.time,
@@ -26,6 +26,13 @@ if (!empty($user_id)) {
                 a.total_hours,
                 a.status,
                 a.attendance_type,
+                a.check_in_latitude,
+                a.check_in_longitude,
+                a.check_in_address,
+                a.check_out_latitude,
+                a.check_out_longitude,
+                a.check_out_address,
+                a.location_accuracy,
                 r.morning_time,
                 r.evening_time,
                 r.total_working_hours
@@ -64,6 +71,13 @@ if (!empty($user_id)) {
             "total_hours" => $totalHours,
             "status" => $row['status'],
             "attendance_type" => $row['attendance_type'],
+            "check_in_latitude" => $row['check_in_latitude'],
+            "check_in_longitude" => $row['check_in_longitude'],
+            "check_in_address" => $row['check_in_address'],
+            "check_out_latitude" => $row['check_out_latitude'],
+            "check_out_longitude" => $row['check_out_longitude'],
+            "check_out_address" => $row['check_out_address'],
+            "location_accuracy" => $row['location_accuracy'],
             "morning_time" => $row['morning_time'], // From reports table
             "evening_time" => $row['evening_time'], // From reports table
             "total_working_hours" => $row['total_working_hours'] // From reports table
