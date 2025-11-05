@@ -15,7 +15,7 @@ class ApiService {
   static const String _productionBaseUrl = 'https://your-static-ip-or-domain.com/Attendance-System-Website/api';
   
   // Development configuration (override in main.dart for development)
-  static String _developmentBaseUrl = 'http://192.168.70.191/Attendance-System/backend';
+  static String _developmentBaseUrl = 'http://192.168.1.7/Attendance-System/backend';
   
   // Get base URL based on environment
   static String get baseUrl {

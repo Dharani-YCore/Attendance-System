@@ -30,7 +30,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   void initState() {
     super.initState();
     _checkAuthenticationOnInit();
-    _requestLocationPermission();
+    // Location permission will be requested during check-in
     if (!kIsWeb) {
       cameraController = MobileScannerController();
     }
@@ -585,14 +585,13 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     if (!hasCheckedInToday) {
       currentActionType = 'check_in';
       print('✅ This will be a CHECK-IN');
-    } else {
-      currentActionType = 'check_out';
-      print('🚪 This will be a CHECK-OUT');
-    }
-
-    // Get current location before processing attendance
-    if (!locationPermissionGranted || currentLocation == null) {
-      print('⚠️ Location not available, requesting permission...');
+      
+      // Force location permission request for every check-in
+      print('📍 Requesting location permission for check-in...');
+      setState(() {
+        locationPermissionGranted = false;
+        currentLocation = null;
+      });
       await _requestLocationPermission();
       
       // If still no location after request, show warning
@@ -604,6 +603,26 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           isProcessing = false;
         });
         return;
+      }
+    } else {
+      currentActionType = 'check_out';
+      print('🚪 This will be a CHECK-OUT');
+      
+      // For check-out, get location if not available
+      if (!locationPermissionGranted || currentLocation == null) {
+        print('⚠️ Location not available for check-out, requesting permission...');
+        await _requestLocationPermission();
+        
+        // If still no location after request, show warning
+        if (currentLocation == null) {
+          if (mounted) {
+            _showLocationWarningDialog();
+          }
+          setState(() {
+            isProcessing = false;
+          });
+          return;
+        }
       }
     }
 
