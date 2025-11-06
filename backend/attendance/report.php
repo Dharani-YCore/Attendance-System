@@ -8,6 +8,9 @@ date_default_timezone_set('Asia/Kolkata');
 $database = new Database();
 $db = $database->getConnection();
 
+// Resolve CRM table mappings
+$attendanceTable = env('ATTENDANCE_TABLE', 'attendance');
+$reportsTable = env('REPORTS_TABLE', 'reports');
 // Validate JWT token
 $user = validateRequest();
 
@@ -36,8 +39,8 @@ if (!empty($user_id)) {
                 r.morning_time,
                 r.evening_time,
                 r.total_working_hours
-              FROM attendance a
-              LEFT JOIN reports r ON a.user_id = r.user_id AND a.date = r.report_date
+              FROM $attendanceTable a
+              LEFT JOIN $reportsTable r ON a.user_id = r.user_id AND a.date = r.report_date
               WHERE a.user_id = ? AND a.date BETWEEN ? AND ?
               ORDER BY a.date DESC";
     
@@ -63,13 +66,25 @@ if (!empty($user_id)) {
             }
         }
         
+        // Derive a display status if DB status is empty/null (for CRM compatibility)
+        $statusValue = $row['status'];
+        if ($statusValue === null || $statusValue === '') {
+            if (!empty($row['check_in_time']) && !empty($row['check_out_time'])) {
+                $statusValue = 'Present';
+            } elseif (!empty($row['check_in_time'])) {
+                $statusValue = 'Present'; // Treat check-in only as present for the day view
+            } else {
+                $statusValue = 'Absent';
+            }
+        }
+        
         $report_data[] = array(
             "date" => $row['date'],
             "time" => $row['time'], // Keep for backward compatibility
             "check_in_time" => $row['check_in_time'],
             "check_out_time" => $row['check_out_time'],
             "total_hours" => $totalHours,
-            "status" => $row['status'],
+            "status" => $statusValue,
             "attendance_type" => $row['attendance_type'],
             "check_in_latitude" => $row['check_in_latitude'],
             "check_in_longitude" => $row['check_in_longitude'],
@@ -91,7 +106,7 @@ if (!empty($user_id)) {
                 SUM(CASE WHEN status = 'Late' THEN 1 ELSE 0 END) as late_days,
                 SUM(CASE WHEN status = 'Absent' THEN 1 ELSE 0 END) as absent_days,
                 SUM(CASE WHEN status = 'On Leave' THEN 1 ELSE 0 END) as leave_days
-              FROM attendance 
+              FROM $attendanceTable 
               WHERE user_id = ? AND date BETWEEN ? AND ?";
     
     $stmt = $db->prepare($query);

@@ -5,6 +5,13 @@ include_once '../config/database.php';
 $database = new Database();
 $db = $database->getConnection();
 
+// Resolve OTP table/column mappings from environment
+$passwordResetsTable = env('PASSWORD_RESETS_TABLE', 'password_resets');
+$resetsEmailCol = env('PASSWORD_RESETS_EMAIL_COL', 'email');
+$resetsOtpCol = env('PASSWORD_RESETS_OTP_COL', 'otp');
+$resetsExpiresCol = env('PASSWORD_RESETS_EXPIRES_COL', 'expires_at');
+$resetsUsedCol = env('PASSWORD_RESETS_USED_COL', 'used');
+
 // Get posted data
 $data = json_decode(file_get_contents("php://input"));
 
@@ -17,8 +24,8 @@ if (!empty($data->email) && isset($data->otp)) {
     }
 
     // Check if OTP exists and is valid
-    $query = "SELECT id, otp, expires_at, used FROM password_resets 
-              WHERE email = ? AND used = FALSE 
+    $query = "SELECT id, $resetsOtpCol AS otp, $resetsExpiresCol AS expires_at, $resetsUsedCol AS used FROM $passwordResetsTable 
+              WHERE $resetsEmailCol = ? AND $resetsUsedCol = FALSE 
               ORDER BY created_at DESC LIMIT 1";
     $stmt = $db->prepare($query);
     $stmt->bindParam(1, $email);
@@ -39,7 +46,7 @@ if (!empty($data->email) && isset($data->otp)) {
         // Verify OTP (string compare)
         if ((string)$row['otp'] === $inputOtp) {
             // Mark OTP as used
-            $updateQuery = "UPDATE password_resets SET used = TRUE WHERE id = ?";
+            $updateQuery = "UPDATE $passwordResetsTable SET $resetsUsedCol = TRUE WHERE id = ?";
             $updateStmt = $db->prepare($updateQuery);
             $updateStmt->bindParam(1, $row['id']);
             $updateStmt->execute();
