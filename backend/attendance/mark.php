@@ -9,6 +9,11 @@ date_default_timezone_set('Asia/Kolkata');
 $database = new Database();
 $db = $database->getConnection();
 
+// Resolve CRM table mappings from environment (defaults keep original names)
+$attendanceTable = env('ATTENDANCE_TABLE', 'attendance');
+$qrCodesTable = env('QR_CODES_TABLE', 'qr_codes');
+$qrLogsTable = env('QR_LOGS_TABLE', 'qr_attendance_logs');
+
 // Validate JWT token
 try {
     $user = validateRequest();
@@ -68,7 +73,7 @@ if (!empty($data->user_id) && !empty($data->status)) {
     }
     
     // Check today's attendance status
-    $query = "SELECT id, check_in_time, check_out_time, attendance_type, status FROM attendance WHERE user_id = ? AND date = ? LIMIT 0,1";
+    $query = "SELECT id, check_in_time, check_out_time, attendance_type, status FROM $attendanceTable WHERE user_id = ? AND date = ? LIMIT 0,1";
     $stmt = $db->prepare($query);
     $stmt->bindParam(1, $data->user_id);
     $stmt->bindParam(2, $today);
@@ -87,7 +92,7 @@ if (!empty($data->user_id) && !empty($data->status)) {
             $totalHours = calculateTotalHours($checkInTime, $checkOutTime);
             
             // Update attendance record with check-out time and location
-            $query = "UPDATE attendance SET check_out_time = ?, total_hours = ?, attendance_type = 'full_day', check_out_latitude = ?, check_out_longitude = ?, check_out_address = ?, location_accuracy = ? WHERE id = ?";
+            $query = "UPDATE $attendanceTable SET check_out_time = ?, total_hours = ?, attendance_type = 'full_day', check_out_latitude = ?, check_out_longitude = ?, check_out_address = ?, location_accuracy = ? WHERE id = ?";
             $stmt = $db->prepare($query);
             $stmt->bindParam(1, $checkOutTime);
             $stmt->bindParam(2, $totalHours);
@@ -151,7 +156,7 @@ if (!empty($data->user_id) && !empty($data->status)) {
         }
         
         // Insert check-in attendance record with location
-        $query = "INSERT INTO attendance SET user_id=:user_id, date=:date, time=:time, check_in_time=:check_in_time, status=:status, attendance_type='check_in', check_in_latitude=:latitude, check_in_longitude=:longitude, check_in_address=:address, location_accuracy=:accuracy";
+        $query = "INSERT INTO $attendanceTable SET user_id=:user_id, date=:date, time=:time, check_in_time=:check_in_time, status=:status, attendance_type='check_in', check_in_latitude=:latitude, check_in_longitude=:longitude, check_in_address=:address, location_accuracy=:accuracy";
         $stmt = $db->prepare($query);
         
         $stmt->bindParam(":user_id", $data->user_id);
@@ -197,6 +202,8 @@ if (!empty($data->user_id) && !empty($data->status)) {
 
 function validateQRCode($qrData, $db) {
     try {
+        // Resolve QR codes table locally in case globals are out of scope
+        $qrCodesTable = env('QR_CODES_TABLE', 'qr_codes');
         $qrInfo = json_decode($qrData, true);
         
         if (!$qrInfo) {
@@ -259,7 +266,7 @@ function validateQRCode($qrData, $db) {
         
         // If QR has an ID, try to validate it against the database
         if ($qr_id) {
-            $query = "SELECT * FROM qr_codes WHERE qr_id = ? AND is_active = 1";
+            $query = "SELECT * FROM $qrCodesTable WHERE qr_id = ? AND is_active = 1";
             $stmt = $db->prepare($query);
             $stmt->bindParam(1, $qr_id);
             $stmt->execute();
@@ -340,8 +347,10 @@ function calculateTotalHours($checkInTime, $checkOutTime) {
 
 function logQRScan($userId, $qrInfo, $latitude, $longitude, $db) {
     try {
+        // Resolve QR logs table locally in case globals are out of scope
+        $qrLogsTable = env('QR_LOGS_TABLE', 'qr_attendance_logs');
         // Add user_latitude and user_longitude columns to qr_attendance_logs if they don't exist
-        $alterQuery = "ALTER TABLE qr_attendance_logs 
+        $alterQuery = "ALTER TABLE $qrLogsTable 
                        ADD COLUMN IF NOT EXISTS user_latitude DECIMAL(10, 8) DEFAULT NULL,
                        ADD COLUMN IF NOT EXISTS user_longitude DECIMAL(11, 8) DEFAULT NULL";
         try {
@@ -350,7 +359,7 @@ function logQRScan($userId, $qrInfo, $latitude, $longitude, $db) {
             // Columns might already exist, continue
         }
         
-        $query = "INSERT INTO qr_attendance_logs 
+        $query = "INSERT INTO $qrLogsTable 
                   (user_id, qr_id, attendance_status, location_scanned, ip_address, user_latitude, user_longitude) 
                   VALUES (?, ?, 'Present', ?, ?, ?, ?)";
         
