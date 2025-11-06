@@ -1,6 +1,4 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -9,13 +7,12 @@ class ApiService {
   // For emulator: use 10.0.2.2
   // For physical device: use your computer's local IP (e.g., 192.168.1.100)
   // To find your IP: Run 'ipconfig' on Windows and look for IPv4 Address
-  static const String _localIpAddress = '192.168.1.3'; // For physical device
+  static const String _localIpAddress = '192.168.1.4'; // For physical device
   static const String _emulatorIpAddress = '10.0.2.2'; // For Android emulator
   // Static configuration for production
   static const String _productionBaseUrl = 'https://your-static-ip-or-domain.com/Attendance-System-Website/api';
-  
   // Development configuration (override in main.dart for development)
-  static String _developmentBaseUrl = 'http://192.168.1.7/Attendance-System/backend';
+static String _developmentBaseUrl = 'http://192.168.1.4/Attendance-System/backend';
   
   // Get base URL based on environment
   static String get baseUrl {
