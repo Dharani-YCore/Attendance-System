@@ -13,6 +13,7 @@ $db = $database->getConnection();
 $attendanceTable = env('ATTENDANCE_TABLE', 'attendance');
 $qrCodesTable = env('QR_CODES_TABLE', 'qr_codes');
 $qrLogsTable = env('QR_LOGS_TABLE', 'qr_attendance_logs');
+$reportsTable = env('REPORTS_TABLE', 'reports');
 
 // Validate JWT token
 try {
@@ -103,21 +104,22 @@ if (!empty($data->user_id) && !empty($data->status)) {
             $stmt->bindParam(7, $existingAttendance['id']);
             
             if ($stmt->execute()) {
-                // Update reports table with check-out time (if columns exist)
-                try {
-                    $query = "UPDATE reports SET evening_time = ?, total_working_hours = ? WHERE user_id = ? AND report_date = ?";
-                    $stmt = $db->prepare($query);
-                    $stmt->bindParam(1, $checkOutTime);
-                    $stmt->bindParam(2, $totalHours);
-                    $stmt->bindParam(3, $data->user_id);
-                    $stmt->bindParam(4, $today);
-                    $stmt->execute();
-                } catch (PDOException $e) {
-                    // If columns don't exist, just continue (migration needed)
-                    if (strpos($e->getMessage(), 'Unknown column') === false) {
-                        throw $e;
-                    }
+            // Update reports table with check-out time (if table/columns exist)
+            try {
+                $query = "UPDATE $reportsTable SET evening_time = ?, total_working_hours = ? WHERE user_id = ? AND report_date = ?";
+                $stmt = $db->prepare($query);
+                $stmt->bindParam(1, $checkOutTime);
+                $stmt->bindParam(2, $totalHours);
+                $stmt->bindParam(3, $data->user_id);
+                $stmt->bindParam(4, $today);
+                $stmt->execute();
+            } catch (PDOException $e) {
+                // Ignore if table or columns are missing; continue flow
+                $msg = $e->getMessage();
+                if (strpos($msg, 'Unknown column') === false && strpos($msg, 'Base table or view not found') === false) {
+                    throw $e;
                 }
+            }
                 
                 echo json_encode(array(
                     "success" => true,
@@ -170,14 +172,22 @@ if (!empty($data->user_id) && !empty($data->status)) {
         $stmt->bindParam(":accuracy", $locationAccuracy);
         
         if ($stmt->execute()) {
-            // Also update or insert into reports table
-            $query = "INSERT INTO reports (user_id, report_date, morning_time) VALUES (?, ?, ?) 
-                      ON DUPLICATE KEY UPDATE morning_time = VALUES(morning_time)";
-            $stmt = $db->prepare($query);
-            $stmt->bindParam(1, $data->user_id);
-            $stmt->bindParam(2, $today);
-            $stmt->bindParam(3, $current_time);
-            $stmt->execute();
+            // Also update or insert into reports table (if exists)
+            try {
+                $query = "INSERT INTO $reportsTable (user_id, report_date, morning_time) VALUES (?, ?, ?) 
+                          ON DUPLICATE KEY UPDATE morning_time = VALUES(morning_time)";
+                $stmt = $db->prepare($query);
+                $stmt->bindParam(1, $data->user_id);
+                $stmt->bindParam(2, $today);
+                $stmt->bindParam(3, $current_time);
+                $stmt->execute();
+            } catch (PDOException $e) {
+                // Ignore if table or columns are missing; continue flow
+                $msg = $e->getMessage();
+                if (strpos($msg, 'Unknown column') === false && strpos($msg, 'Base table or view not found') === false) {
+                    throw $e;
+                }
+            }
             
             echo json_encode(array(
                 "success" => true,

@@ -67,7 +67,24 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 }
 
 // Ensure the user's email column is not NULL or empty before sending OTP
-$query = "SELECT id, name, email FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) AND email IS NOT NULL AND email <> '' LIMIT 0,1";
+// Resolve CRM table/column mappings
+$usersTable = env('USER_TABLE', 'users');
+$userIdCol = env('USER_ID_COL', 'id');
+$emailCol = env('USER_EMAIL_COL', 'email');
+$nameCol = env('USER_NAME_COL', '');
+$firstNameCol = env('USER_FIRST_NAME_COL', '');
+$lastNameCol = env('USER_LAST_NAME_COL', '');
+
+// Build name select
+if (!empty($firstNameCol) && !empty($lastNameCol)) {
+    $nameSelect = "CONCAT(TRIM($firstNameCol), ' ', TRIM($lastNameCol)) AS name";
+} elseif (!empty($nameCol)) {
+    $nameSelect = "$nameCol AS name";
+} else {
+    $nameSelect = "$emailCol AS name"; // fallback
+}
+
+$query = "SELECT $userIdCol AS id, $nameSelect, $emailCol AS email FROM $usersTable WHERE LOWER(TRIM($emailCol)) = LOWER(TRIM(?)) AND $emailCol IS NOT NULL AND $emailCol <> '' LIMIT 0,1";
 $stmt = $db->prepare($query);
 $stmt->bindValue(1, $email);
 $stmt->execute();
@@ -82,8 +99,14 @@ if ($num > 0) {
     $expiry = date('Y-m-d H:i:s', time() + 600); // 10 minutes from now
 
     // Store OTP in database (reset used=FALSE for new OTP)
-    $query = "INSERT INTO password_resets (email, otp, expires_at, used) VALUES (?, ?, ?, FALSE)
-              ON DUPLICATE KEY UPDATE otp = VALUES(otp), expires_at = VALUES(expires_at), used = FALSE, created_at = NOW()";
+    $passwordResetsTable = env('PASSWORD_RESETS_TABLE', 'password_resets');
+    $resetsEmailCol = env('PASSWORD_RESETS_EMAIL_COL', 'email');
+    $resetsOtpCol = env('PASSWORD_RESETS_OTP_COL', 'otp');
+    $resetsExpiresCol = env('PASSWORD_RESETS_EXPIRES_COL', 'expires_at');
+    $resetsUsedCol = env('PASSWORD_RESETS_USED_COL', 'used');
+
+    $query = "INSERT INTO $passwordResetsTable ($resetsEmailCol, $resetsOtpCol, $resetsExpiresCol, $resetsUsedCol) VALUES (?, ?, ?, FALSE)
+              ON DUPLICATE KEY UPDATE $resetsOtpCol = VALUES($resetsOtpCol), $resetsExpiresCol = VALUES($resetsExpiresCol), $resetsUsedCol = FALSE, created_at = NOW()";
     $stmt = $db->prepare($query);
     $stmt->bindParam(1, $data->email);
     $stmt->bindParam(2, $otp);
