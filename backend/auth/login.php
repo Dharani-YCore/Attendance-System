@@ -44,8 +44,31 @@ if (!empty($data->email) && !empty($data->password)) {
         error_log('[LOGIN] DB name fetch failed: ' . $e->getMessage());
     }
 
-    // Check if user exists (include is_first_login field)
-    $query = "SELECT id, name, email, password, is_first_login FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 0,1";
+    // Resolve CRM table and column mappings from environment
+    $userTable = env('USER_TABLE', 'users');
+    $idCol = env('USER_ID_COL', 'id');
+    $nameCol = env('USER_NAME_COL', '');
+    $firstNameCol = env('USER_FIRST_NAME_COL', '');
+    $lastNameCol = env('USER_LAST_NAME_COL', '');
+    $emailCol = env('USER_EMAIL_COL', 'email');
+    $passwordCol = env('USER_PASSWORD_COL', 'password');
+    $isFirstLoginCol = env('USER_IS_FIRST_LOGIN_COL', 'is_first_login'); // can be missing
+
+    // Build SELECT with safe identifiers
+    // Name selection: prefer CONCAT(first,last) if provided; else use single name column; else fallback to email as name
+    if (!empty($firstNameCol) && !empty($lastNameCol)) {
+        $nameSelect = "CONCAT(TRIM($firstNameCol), ' ', TRIM($lastNameCol)) AS name";
+    } elseif (!empty($nameCol)) {
+        $nameSelect = "$nameCol AS name";
+    } else {
+        $nameSelect = "$emailCol AS name";
+    }
+
+    $selectCols = "$idCol AS id, $emailCol AS email, $passwordCol AS password, $nameSelect";
+    if (!empty($isFirstLoginCol)) {
+        $selectCols .= ", $isFirstLoginCol AS is_first_login";
+    }
+    $query = "SELECT $selectCols FROM $userTable WHERE LOWER(TRIM($emailCol)) = LOWER(TRIM(?)) LIMIT 0,1";
     $stmt = $db->prepare($query);
     $stmt->bindValue(1, $normalizedEmail);
     $stmt->execute();
@@ -65,8 +88,8 @@ if (!empty($data->email) && !empty($data->password)) {
                 "action" => "set_password"
             ));
         } else if (password_verify($data->password, $row['password'])) {
-            // Check if this is first-time login
-            if (isset($row['is_first_login']) && $row['is_first_login'] == 1) {
+            // Check if this is first-time login (optional)
+            if (array_key_exists('is_first_login', $row) && strval($row['is_first_login']) === '1') {
                 http_response_code(200);
                 echo json_encode(array(
                     "success" => false,
@@ -106,8 +129,8 @@ if (!empty($data->email) && !empty($data->password)) {
             }
             
             if ($passwordMatch) {
-            // Check if this is first-time login
-            if (isset($row['is_first_login']) && $row['is_first_login'] == 1) {
+            // Check if this is first-time login (optional)
+            if (array_key_exists('is_first_login', $row) && strval($row['is_first_login']) === '1') {
                 http_response_code(200);
                 echo json_encode(array(
                     "success" => false,

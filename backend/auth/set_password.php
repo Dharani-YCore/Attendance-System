@@ -31,8 +31,32 @@ if (!empty($data->email) && !empty($data->old_password) && !empty($data->new_pas
         exit();
     }
     
+    // Resolve CRM table/column mappings from environment
+    $userTable = env('USER_TABLE', 'users');
+    $idCol = env('USER_ID_COL', 'id');
+    $emailCol = env('USER_EMAIL_COL', 'email');
+    $passwordCol = env('USER_PASSWORD_COL', 'password');
+    $isFirstLoginCol = env('USER_IS_FIRST_LOGIN_COL', 'is_first_login');
+
+    $nameCol = env('USER_NAME_COL', '');
+    $firstNameCol = env('USER_FIRST_NAME_COL', '');
+    $lastNameCol = env('USER_LAST_NAME_COL', '');
+
+    // Name selection: prefer CONCAT(first,last) if provided; else single name column; else fallback to email
+    if (!empty($firstNameCol) && !empty($lastNameCol)) {
+        $nameSelect = "CONCAT(TRIM($firstNameCol), ' ', TRIM($lastNameCol)) AS name";
+    } elseif (!empty($nameCol)) {
+        $nameSelect = "$nameCol AS name";
+    } else {
+        $nameSelect = "$emailCol AS name";
+    }
+
     // Check if user exists and get current password
-    $query = "SELECT id, name, email, password, is_first_login FROM users WHERE email = ? LIMIT 0,1";
+    $selectCols = "$idCol AS id, $emailCol AS email, $passwordCol AS password, $nameSelect";
+    if (!empty($isFirstLoginCol)) {
+        $selectCols .= ", $isFirstLoginCol AS is_first_login";
+    }
+    $query = "SELECT $selectCols FROM $userTable WHERE $emailCol = ? LIMIT 0,1";
     $stmt = $db->prepare($query);
     $stmt->bindParam(1, $data->email);
     $stmt->execute();
@@ -72,8 +96,12 @@ if (!empty($data->email) && !empty($data->old_password) && !empty($data->new_pas
         // Hash new password
         $new_password_hash = password_hash($data->new_password, PASSWORD_BCRYPT);
         
-        // Update password in database
-        $query = "UPDATE users SET password = ?, is_first_login = FALSE WHERE email = ?";
+        // Update password in database and clear first-login flag if column exists
+        if (!empty($isFirstLoginCol)) {
+            $query = "UPDATE $userTable SET $passwordCol = ?, $isFirstLoginCol = 0 WHERE $emailCol = ?";
+        } else {
+            $query = "UPDATE $userTable SET $passwordCol = ? WHERE $emailCol = ?";
+        }
         $stmt = $db->prepare($query);
         $stmt->bindParam(1, $new_password_hash);
         $stmt->bindParam(2, $data->email);
