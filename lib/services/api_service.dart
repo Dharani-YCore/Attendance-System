@@ -1,18 +1,23 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
 
 class ApiService {
   // ⚙️ CONFIGURATION: Change this IP for physical Android devices
   // For emulator: use 10.0.2.2
   // For physical device: use your computer's local IP (e.g., 192.168.1.100)
   // To find your IP: Run 'ipconfig' on Windows and look for IPv4 Address
-  static const String _localIpAddress = '192.168.1.4'; // For physical device
+  static const String _localIpAddress = '192.168.0.13'; // For physical device
   static const String _emulatorIpAddress = '10.0.2.2'; // For Android emulator
   // Static configuration for production
   static const String _productionBaseUrl = 'https://your-static-ip-or-domain.com/Attendance-System-Website/api';
-  // Development configuration (override in main.dart for development)
-static String _developmentBaseUrl = 'http://192.168.1.4/Attendance-System/backend';
+  // Development configuration - will be auto-detected or can be manually set
+  static String? _developmentBaseUrl;
+  
+  // Cached base URL to avoid repeated async calls
+  static String? _cachedBaseUrl;
   
   // Get base URL based on environment
   static String get baseUrl {
@@ -21,13 +26,170 @@ static String _developmentBaseUrl = 'http://192.168.1.4/Attendance-System/backen
       return _productionBaseUrl;
     }
     
-    // In development, use the development URL which can be overridden
-    return _developmentBaseUrl;
+    // In development, auto-detect or use manually set URL
+    if (_developmentBaseUrl != null) {
+      return _developmentBaseUrl!;
+    }
+    
+    // Return cached URL or default
+    if (_cachedBaseUrl != null) {
+      return _cachedBaseUrl!;
+    }
+    
+    // Auto-detect: check if running on emulator or physical device (synchronous check)
+    return _getAutoDetectedBaseUrl();
+  }
+  
+  // Initialize base URL asynchronously (call this in main() or app startup)
+  static Future<void> initializeBaseUrl() async {
+    if (const bool.fromEnvironment('dart.vm.product')) {
+      _cachedBaseUrl = _productionBaseUrl;
+      return;
+    }
+    
+    if (_developmentBaseUrl != null) {
+      _cachedBaseUrl = _developmentBaseUrl;
+      return;
+    }
+    
+    // Check manual override first, then SharedPreferences for emulator setting
+    bool isEmulator = false;
+    if (_manualEmulatorOverride != null) {
+      isEmulator = _manualEmulatorOverride!;
+      print('🔧 Using manual emulator override: $isEmulator');
+    } else {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final savedOverride = prefs.getBool('is_emulator');
+        if (savedOverride != null) {
+          isEmulator = savedOverride;
+          _manualEmulatorOverride = savedOverride;
+          print('🔧 Using saved emulator preference: $isEmulator');
+        }
+      } catch (e) {
+        print('⚠️ Could not read emulator preference: $e');
+      }
+    }
+    
+    _cachedBaseUrl = _getAutoDetectedBaseUrl(isEmulator);
+    print('🌐 Initialized base URL: $_cachedBaseUrl');
+  }
+  
+  // Auto-detect the correct base URL based on platform
+  static String _getAutoDetectedBaseUrl([bool? isEmulator]) {
+    if (kIsWeb) {
+      // Web platform - use localhost
+      return 'http://localhost/Attendance-System/backend';
+    }
+    
+    if (Platform.isAndroid) {
+      // Use provided emulator flag or default to physical device
+      if (isEmulator == true) {
+        print('🔍 Using Android Emulator mode - Using 10.0.2.2');
+        return 'http://${_emulatorIpAddress}/Attendance-System/backend';
+      } else {
+        print('🔍 Using Physical Android Device mode - Using $_localIpAddress');
+        return 'http://$_localIpAddress/Attendance-System/backend';
+      }
+    }
+    
+    if (Platform.isIOS) {
+      // iOS simulator uses localhost, physical device needs local network IP
+      print('🔍 Auto-detected: iOS - Using $_localIpAddress');
+      return 'http://$_localIpAddress/Attendance-System/backend';
+    }
+    
+    // Default fallback
+    return 'http://$_localIpAddress/Attendance-System/backend';
+  }
+  
+  // Manual override for emulator detection (set via SharedPreferences)
+  static bool? _manualEmulatorOverride;
+  
+  // Manually set whether running on emulator (useful if auto-detection fails)
+  static Future<void> setEmulatorMode(bool isEmulator) async {
+    _manualEmulatorOverride = isEmulator;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_emulator', isEmulator);
+      print('🔧 Emulator mode set to: $isEmulator');
+      // Clear cached URL to force re-initialization
+      _cachedBaseUrl = null;
+      _developmentBaseUrl = null;
+      // Re-initialize with new setting
+      await initializeBaseUrl();
+    } catch (e) {
+      print('⚠️ Could not save emulator preference: $e');
+    }
   }
   
   // Method to update the base URL at runtime (useful for development)
   static void setDevelopmentBaseUrl(String url) {
-    _developmentBaseUrl = url.endsWith('/') ? url : '$url/';
+    _developmentBaseUrl = url.endsWith('/') ? url.substring(0, url.length - 1) : url;
+    _cachedBaseUrl = _developmentBaseUrl;
+    print('🔧 Base URL manually set to: $_developmentBaseUrl');
+  }
+  
+  // Get the current IP address being used (for debugging)
+  static String getCurrentIpAddress() {
+    final url = baseUrl;
+    if (url.contains(_emulatorIpAddress)) {
+      return _emulatorIpAddress;
+    } else if (url.contains(_localIpAddress)) {
+      return _localIpAddress;
+    }
+    return 'unknown';
+  }
+  
+  // Update the local IP address (useful when IP changes)
+  // Note: This updates the default IP, but if _developmentBaseUrl is set, it takes precedence
+  static Future<void> updateLocalIpAddress(String newIp) async {
+    // Update the development base URL with new IP
+    final newBaseUrl = 'http://$newIp/Attendance-System/backend';
+    setDevelopmentBaseUrl(newBaseUrl);
+    print('🔧 Updated local IP address to: $newIp');
+    print('🌐 New base URL: $newBaseUrl');
+  }
+  
+  // Helper method to get user-friendly error message
+  static String _getErrorMessage(dynamic error) {
+    String errorStr = error.toString().toLowerCase();
+    
+    if (errorStr.contains('connection timed out') || errorStr.contains('timeout')) {
+      return '''Connection timeout. Possible causes:
+• XAMPP server is not running
+• Wrong IP address (current: $_localIpAddress)
+• Device and computer are not on the same network
+• Firewall is blocking the connection
+
+Troubleshooting:
+1. Verify XAMPP is running (Apache and MySQL)
+2. Check your computer's IP: Run "ipconfig" and look for IPv4 Address
+3. Update IP in lib/services/api_service.dart if it changed
+4. For emulator, use 10.0.2.2 instead of $_localIpAddress
+5. Ensure both devices are on the same Wi-Fi network''';
+    }
+    
+    if (errorStr.contains('failed host lookup') || errorStr.contains('no address associated')) {
+      return '''Cannot reach server. Possible causes:
+• Wrong IP address (current: $_localIpAddress)
+• Server is not running
+• Network connectivity issues
+
+Please verify:
+1. XAMPP Apache server is running
+2. Correct IP address in api_service.dart
+3. Test URL in browser: http://$_localIpAddress/Attendance-System/backend/auth/login.php''';
+    }
+    
+    if (errorStr.contains('connection refused')) {
+      return '''Connection refused. The server is not accepting connections.
+• Check if XAMPP Apache is running
+• Verify the server is listening on port 80
+• Check firewall settings''';
+    }
+    
+    return 'Network error: $error';
   }
   
   // Authentication endpoints
@@ -36,6 +198,7 @@ static String _developmentBaseUrl = 'http://192.168.1.4/Attendance-System/backen
       // Ensure the URL is properly formatted
       final loginUrl = '${baseUrl.endsWith('/') ? baseUrl : '$baseUrl/'}auth/login.php';
       print('🔗 API: Sending login request to $loginUrl');
+      print('🌐 Current base URL: $baseUrl');
       
       final response = await http.post(
         Uri.parse(loginUrl),
@@ -50,7 +213,7 @@ static String _developmentBaseUrl = 'http://192.168.1.4/Attendance-System/backen
       ).timeout(
         const Duration(seconds: 30),
         onTimeout: () {
-          throw Exception('Connection timeout. Please check your internet connection and try again.');
+          throw Exception('Connection timeout');
         },
       );
       
@@ -77,9 +240,11 @@ static String _developmentBaseUrl = 'http://192.168.1.4/Attendance-System/backen
       return data;
     } catch (e) {
       print('❌ API: Error in login: $e');
+      final errorMessage = _getErrorMessage(e);
+      print('📋 API: User-friendly error: $errorMessage');
       return {
         'success': false,
-        'message': 'Network error: $e'
+        'message': errorMessage
       };
     }
   }
