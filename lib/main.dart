@@ -18,11 +18,23 @@ import 'screens/daily_report_screen.dart';
 import 'screens/monthly_report_screen.dart';
 import 'screens/biometric_auth_screen.dart';
 
-void main() {
-  const devBaseUrl = String.fromEnvironment('DEV_BASE_URL');
-  if (kDebugMode && devBaseUrl.isNotEmpty) {
-    ApiService.setDevelopmentBaseUrl(devBaseUrl);
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize API service base URL
+  try {
+    const devBaseUrl = String.fromEnvironment('DEV_BASE_URL');
+    if (kDebugMode && devBaseUrl.isNotEmpty) {
+      ApiService.setDevelopmentBaseUrl(devBaseUrl);
+      print('🔧 Using custom dev base URL: $devBaseUrl');
+    } else {
+      // Initialize with auto-detection
+      await ApiService.initializeBaseUrl();
+    }
+  } catch (e) {
+    print('⚠️ Error initializing base URL: $e');
   }
+  
   runApp(const MyApp());
 }
 
@@ -114,6 +126,13 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
     // Initialize auth with a slight delay to ensure everything is ready
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
+        // Ensure API service is initialized (in case it wasn't in main)
+        try {
+          await ApiService.initializeBaseUrl();
+        } catch (e) {
+          print('⚠️ API service already initialized or error: $e');
+        }
+        
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         await authProvider.initializeAuth();
         
