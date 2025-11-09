@@ -254,13 +254,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Colors.green,
                 ),
               ),
-              Expanded(
-                child: _buildStatItem(
-                  'Late',
-                  userStats!['late_days'].toString(),
-                  Colors.orange,
-                ),
-              ),
             ],
           ),
         ],

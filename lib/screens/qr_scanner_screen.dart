@@ -566,6 +566,13 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       }
     }
 
+    // Refresh today's attendance before deciding action
+    try {
+      if (authProvider.currentUser != null) {
+        await attendanceProvider.loadAttendanceHistory(authProvider.currentUser!['id'], limit: 30);
+      }
+    } catch (_) {}
+
     // Check today's attendance status to determine if this is check-in or check-out
     final hasCompletedToday = attendanceProvider.hasCompletedAttendanceToday();
     final hasCheckedInToday = attendanceProvider.hasCheckedInToday();
@@ -648,20 +655,23 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     print('📍 Attendance data with location: $attendanceData');
     
     try {
-      final success = await attendanceProvider.markAttendance(
-        authProvider.currentUser!['id'], 
+      final result = await attendanceProvider.markAttendance(
+        authProvider.currentUser!['id'],
         'Present',
-        qrData: attendanceData
+        qrData: attendanceData,
       );
-      
-      if (success) {
+
+      if (result != null && result['success'] == true) {
         if (mounted) {
           // Stop camera and show success screen
           await cameraController?.stop();
           
           setState(() {
             isScanned = true;
-            actionType = currentActionType; // Store the action type
+            // Prefer server-reported action, fallback to our computed type
+            actionType = (result['action'] == 'check_out' || result['action'] == 'check_in')
+                ? result['action']
+                : currentActionType;
             checkInTime = DateTime.now().toString().split(' ')[1].substring(0, 5);
             isProcessing = false;
           });

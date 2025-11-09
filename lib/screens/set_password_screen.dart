@@ -115,11 +115,10 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       final success = await authProvider.setPassword(email, oldPassword, newPassword, confirmPassword);
       
       if (success) {
-        // Password changed successfully, automatically logged in
-        _showMessage('Password changed successfully!');
-        // Navigate to dashboard
+        // Force re-login after password change
         if (mounted) {
-          Navigator.pushReplacementNamed(context, '/dashboard');
+          await Provider.of<AuthProvider>(context, listen: false).logout();
+          Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
         }
       } else {
         _showMessage(authProvider.errorMessage ?? 'Failed to set password', isError: true);
