@@ -16,7 +16,7 @@ class AttendanceProvider with ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   // Mark attendance
-  Future<bool> markAttendance(int userId, String status, {String? qrData}) async {
+  Future<Map<String, dynamic>?> markAttendance(int userId, String status, {String? qrData}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -29,16 +29,16 @@ class AttendanceProvider with ChangeNotifier {
         await loadAttendanceHistory(userId);
         _errorMessage = null;
         notifyListeners();
-        return true;
+        return result;
       } else {
         _errorMessage = result['message'];
         notifyListeners();
-        return false;
+        return null;
       }
     } catch (e) {
       _errorMessage = 'Failed to mark attendance: $e';
       notifyListeners();
-      return false;
+      return null;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -114,8 +114,16 @@ class AttendanceProvider with ChangeNotifier {
 
   // Check if user has checked in today but not checked out
   bool hasCheckedInToday() {
-    final todayStatus = getTodayAttendanceStatus();
-    return todayStatus != null;
+    if (_attendanceHistory.isEmpty) return false;
+    final today = DateTime.now();
+    final todayString = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    for (var record in _attendanceHistory) {
+      if (record['date'] == todayString) {
+        // Checked in if we have a record and no checkout yet
+        return record['check_in_time'] != null && record['check_out_time'] == null;
+      }
+    }
+    return false;
   }
 
   // Check if user has completed both check-in and check-out today
