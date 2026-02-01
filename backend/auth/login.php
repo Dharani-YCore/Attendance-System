@@ -1,0 +1,178 @@
+<?php
+
+// --- CORS & CONTENT-TYPE HEADERS ---
+// Allow requests from any origin. For production, you might want to restrict this to your app's domain.
+header("Access-Control-Allow-Origin: *");
+// Set content type to JSON
+header("Content-Type: application/json; charset=UTF-8");
+// Allow common HTTP methods.
+header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
+// Set max age for pre-flight cache
+header("Access-Control-Max-Age: 3600");
+// Allow specific headers.
+header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+
+
+// Handle pre-flight requests (OPTIONS method)
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
+// --- END OF HEADERS ---
+
+// Include database and user object
+include_once '../config/database.php';
+include_once '../objects/user.php';
+
+// Get database connection
+$database = new Database();
+$db = $database->getConnection();
+
+// Get posted data
+$data = json_decode(file_get_contents("php://input"));
+
+// Make sure data is not empty
+if (!empty($data->email) && !empty($data->password)) {
+    // Normalize email for lookup
+    $normalizedEmail = strtolower(trim($data->email));
+
+    // DEV logging: which DB and which email are being used
+    try {
+        $currentDb = $db->query('SELECT DATABASE()')->fetchColumn();
+        error_log('[LOGIN] Using DB: ' . $currentDb . ' | Email: ' . $normalizedEmail);
+    } catch (Exception $e) {
+        error_log('[LOGIN] DB name fetch failed: ' . $e->getMessage());
+    }
+
+    // Resolve CRM table and column mappings from environment
+    $userTable = env('USER_TABLE', 'users');
+    $idCol = env('USER_ID_COL', 'id');
+    $nameCol = env('USER_NAME_COL', '');
+    $firstNameCol = env('USER_FIRST_NAME_COL', '');
+    $lastNameCol = env('USER_LAST_NAME_COL', '');
+    $emailCol = env('USER_EMAIL_COL', 'email');
+    $passwordCol = env('USER_PASSWORD_COL', 'password');
+    $isFirstLoginCol = env('USER_IS_FIRST_LOGIN_COL', 'is_first_login'); // can be missing
+
+    // Build SELECT with safe identifiers
+    // Name selection: prefer CONCAT(first,last) if provided; else use single name column; else fallback to email as name
+    if (!empty($firstNameCol) && !empty($lastNameCol)) {
+        $nameSelect = "CONCAT(TRIM($firstNameCol), ' ', TRIM($lastNameCol)) AS name";
+    } elseif (!empty($nameCol)) {
+        $nameSelect = "$nameCol AS name";
+    } else {
+        $nameSelect = "$emailCol AS name";
+    }
+
+    $selectCols = "$idCol AS id, $emailCol AS email, $passwordCol AS password, $nameSelect";
+    if (!empty($isFirstLoginCol)) {
+        $selectCols .= ", $isFirstLoginCol AS is_first_login";
+    }
+    $query = "SELECT $selectCols FROM $userTable WHERE LOWER(TRIM($emailCol)) = LOWER(TRIM(?)) LIMIT 0,1";
+    $stmt = $db->prepare($query);
+    $stmt->bindValue(1, $normalizedEmail);
+    $stmt->execute();
+    
+    $num = $stmt->rowCount();
+    error_log('[LOGIN] Row count for email lookup: ' . $num);
+    
+    if ($num > 0) {
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // Check if password is set (not null)
+        if ($row['password'] === null) {
+            http_response_code(401);
+            echo json_encode(array(
+                "success" => false,
+                "message" => "Password not set. Please set your password first.",
+                "action" => "set_password"
+            ));
+        } else if (password_verify($data->password, $row['password'])) {
+            // Check if this is first-time login (optional)
+            if (array_key_exists('is_first_login', $row) && strval($row['is_first_login']) === '1') {
+                http_response_code(200);
+                echo json_encode(array(
+                    "success" => false,
+                    "message" => "Please change your default password.",
+                    "action" => "set_password"
+                ));
+            } else {
+                // Generate JWT token
+                $token = generateJWT($row['id'], $row['email']);
+                
+                http_response_code(200);
+                echo json_encode(array(
+                    "success" => true,
+                    "message" => "Login successful.",
+                    "token" => $token,
+                    "user" => array(
+                        "id" => $row['id'],
+                        "name" => $row['name'],
+                        "email" => $row['email']
+                    )
+                ));
+            }
+        } else {
+            // ⚠️ DEVELOPMENT MODE: Allow plain text password comparison for testing
+            // TODO: REMOVE THIS IN PRODUCTION - Only use password_verify()
+            $passwordMatch = false;
+            
+            // Try hashed password first (secure method)
+            if (password_verify($data->password, $row['password'])) {
+                $passwordMatch = true;
+            } 
+            // DEVELOPMENT ONLY: Also check plain text (for testing with unhashed passwords)
+            else if ($data->password === $row['password']) {
+                $passwordMatch = true;
+                // Warning: This is insecure - hash this password!
+                error_log("WARNING: Plain text password detected for user: " . $row['email']);
+            }
+            
+            if ($passwordMatch) {
+            // Check if this is first-time login (optional)
+            if (array_key_exists('is_first_login', $row) && strval($row['is_first_login']) === '1') {
+                http_response_code(200);
+                echo json_encode(array(
+                    "success" => false,
+                    "message" => "Please change your default password.",
+                    "action" => "set_password"
+                ));
+            } else {
+                // Generate JWT token
+                $token = generateJWT($row['id'], $row['email']);
+                
+                http_response_code(200);
+                echo json_encode(array(
+                    "success" => true,
+                    "message" => "Login successful.",
+                    "token" => $token,
+                    "user" => array(
+                        "id" => $row['id'],
+                        "name" => $row['name'],
+                        "email" => $row['email']
+                    )
+                ));
+            }
+            } else {
+                http_response_code(401);
+                echo json_encode(array(
+                    "success" => false,
+                    "message" => "Invalid password."
+                ));
+            }
+        }
+    } else {
+        http_response_code(404);
+        echo json_encode(array(
+            "success" => false,
+            "message" => "No user exists with this email ID."
+        ));
+    }
+} else {
+    http_response_code(400);
+   echo json_encode(array(
+        "success" => false,
+        "message" => "Email and password are required."
+    ));
+}
+?>

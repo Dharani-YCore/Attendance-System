@@ -1,0 +1,700 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../services/api_service.dart';
+
+class MonthlyReportScreen extends StatefulWidget {
+  const MonthlyReportScreen({super.key});
+
+  @override
+  State<MonthlyReportScreen> createState() => _MonthlyReportScreenState();
+}
+
+class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
+  bool isLoading = true;
+  DateTime selectedMonth = DateTime.now();
+  Map<String, dynamic>? reportData;
+  List<Map<String, dynamic>> holidays = [];
+  String? errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    // Schedule data loading after the first frame to avoid build phase conflicts
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadMonthlyReport();
+    });
+  }
+
+  void _loadMonthlyReport() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      final user = await ApiService.getCurrentUser();
+      if (user != null) {
+        // Get first and last day of selected month
+        final firstDay = DateTime(selectedMonth.year, selectedMonth.month, 1);
+        final lastDay = DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
+        
+        final startDate = DateFormat('yyyy-MM-dd').format(firstDay);
+        final endDate = DateFormat('yyyy-MM-dd').format(lastDay);
+        
+        // Fetch both attendance report and holidays in parallel
+        final reportFuture = ApiService.getAttendanceReport(user['id'], startDate, endDate);
+        final holidaysFuture = ApiService.getHolidays(startDate, endDate);
+        
+        // Wait for both requests to complete
+        final results = await Future.wait([reportFuture, holidaysFuture]);
+        final result = results[0];
+        final holidaysResult = results[1];
+        
+        // Process holidays
+        List<Map<String, dynamic>> holidaysList = [];
+        if (holidaysResult['success'] == true && holidaysResult['data'] != null) {
+          holidaysList = List<Map<String, dynamic>>.from(holidaysResult['data']);
+          print('📅 Loaded ${holidaysList.length} holidays');
+        } else {
+          print('⚠️ No holidays data or error: ${holidaysResult['message']}');
+        }
+        
+        // Process attendance data
+        if (result['success'] == true) {
+          print('✅ Successfully loaded attendance report');
+          
+          // Ensure the report data has the expected structure
+          if (result['data'] == null) {
+            result['data'] = [];
+          }
+          
+          // If summary is missing, calculate it from the data
+          if (result['summary'] == null) {
+            print('ℹ️ Calculating summary from attendance data...');
+            final data = List<Map<String, dynamic>>.from(result['data']);
+            final presentDays = data.where((record) => 
+              record['status'] == 'Present' || record['status'] == 'Late').length;
+            
+            final absentDays = data.where((record) => 
+              record['status'] == 'Absent').length;
+              
+            final leaveDays = data.where((record) => 
+              record['status'] == 'On Leave').length;
+              
+            final totalDays = data.length;
+            final attendancePercentage = totalDays > 0 
+              ? ((presentDays / totalDays) * 100).round() 
+              : 0;
+              
+            result['summary'] = {
+              'total_days': totalDays,
+              'present_days': presentDays,
+              'absent_days': absentDays,
+              'leave_days': leaveDays,
+              'attendance_percentage': attendancePercentage,
+            };
+          }
+          
+          setState(() {
+            reportData = result;
+            holidays = holidaysList;
+            print('📊 Report data loaded with ${result['data']?.length ?? 0} records');
+            print('📊 Summary: ${result['summary']}');
+            print('📅 Holidays: ${holidays.length}');
+          });
+        } else {
+          print('❌ Error in attendance report: ${result['message']}');
+          setState(() {
+            errorMessage = 'Failed to load attendance data: ${result['message']}';
+          });
+        }
+      } else {
+        setState(() {
+          errorMessage = 'User not found. Please login again.';
+        });
+      }
+    } catch (e) {
+      print('❌ Error loading monthly report: $e');
+      setState(() {
+        errorMessage = 'Failed to load monthly report. Please check your connection.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _selectMonth() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: selectedMonth,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      initialDatePickerMode: DatePickerMode.year,
+    );
+
+    if (picked != null && (picked.month != selectedMonth.month || picked.year != selectedMonth.year)) {
+      setState(() {
+        selectedMonth = picked;
+      });
+      _loadMonthlyReport();
+    }
+  }
+
+  // Get attendance status for a specific date
+  String? _getAttendanceStatus(DateTime date) {
+    if (reportData == null || reportData!['data'] == null) return null;
+    
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    final records = reportData!['data'] as List;
+    
+    for (var record in records) {
+      if (record['date'] == dateStr) {
+        return record['status'];
+      }
+    }
+    return null;
+  }
+
+  // Check if a date is a holiday
+  bool _isHoliday(DateTime date) {
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    return holidays.any((holiday) => holiday['date'] == dateStr);
+  }
+
+  // Get holiday name for a date
+  String? _getHolidayName(DateTime date) {
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    final holiday = holidays.firstWhere(
+      (h) => h['date'] == dateStr,
+      orElse: () => {},
+    );
+    return holiday.isNotEmpty ? holiday['name'] : null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFE0F7FA),
+      appBar: AppBar(
+        title: const Text('Monthly Report'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.black,
+      ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : errorMessage != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: Colors.red.shade300,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.black54,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadMonthlyReport,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Month Selector Card
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.1),
+                          spreadRadius: 1,
+                          blurRadius: 5,
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Selected Month',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.black54,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              DateFormat('MMMM yyyy').format(selectedMonth),
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: _selectMonth,
+                          icon: const Icon(Icons.calendar_month, size: 18),
+                          label: const Text('Change'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF80DEEA),
+                            foregroundColor: Colors.black,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Calendar View
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.1),
+                          spreadRadius: 1,
+                          blurRadius: 5,
+                        ),
+                      ],
+                    ),
+                    child: _buildCalendar(),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Summary Stats Card
+                  _buildAttendanceSummary(),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildAttendanceSummary() {
+    final presentDays = reportData?['summary']?['present_days'] ?? 0;
+    final absentDays = reportData?['summary']?['absent_days'] ?? 0;
+    
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 5,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Attendance Summary:',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 20),
+          // First Row: Total working days and Days Present
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: _buildSummaryItemCompact(
+                  'Total working days',
+                  _calculateTotalWorkingDays().toString(),
+                ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: _buildSummaryItemCompact(
+                  'Days Present',
+                  presentDays.toString(),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Second Row: Attendance Not Marked and Days Absent
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: _buildSummaryItemCompact(
+                  'Attendance Not Marked',
+                  _calculateNotMarkedDays().toString(),
+                ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: _buildSummaryItemCompact(
+                  'Days Absent',
+                  absentDays.toString(),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCalendar() {
+    final firstDay = DateTime(selectedMonth.year, selectedMonth.month, 1);
+    final lastDay = DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
+    final daysInMonth = lastDay.day;
+    final firstWeekday = firstDay.weekday;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Attendance Calendar',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        
+        // Weekday headers
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+              .map((day) => SizedBox(
+                    width: 40,
+                    child: Center(
+                      child: Text(
+                        day,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                  ))
+              .toList(),
+        ),
+        const SizedBox(height: 12),
+        
+        // Calendar grid - Using Table for proper alignment
+        Table(
+          children: _buildCalendarRows(firstDay, lastDay, daysInMonth, firstWeekday),
+        ),
+        const SizedBox(height: 20),
+        
+        // Legend
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            _buildLegendItem('Present', Colors.green),
+            _buildLegendItem('Absent', Colors.red),
+            _buildLegendItem('Holiday', Colors.yellow.shade700),
+          ],
+        ),
+      ],
+    );
+  }
+
+  List<TableRow> _buildCalendarRows(DateTime firstDay, DateTime lastDay, int daysInMonth, int firstWeekday) {
+    List<TableRow> rows = [];
+    int dayCounter = 1;
+    // Adjust weekday: Sunday should be 0, Monday 1, etc.
+    int startOffset = firstWeekday % 7;
+    
+    // Build up to 6 weeks
+    for (int week = 0; week < 6; week++) {
+      List<Widget> dayCells = [];
+      
+      for (int weekday = 0; weekday < 7; weekday++) {
+        int cellIndex = week * 7 + weekday;
+        
+        // Before month starts or after month ends
+        if ((week == 0 && weekday < startOffset) || dayCounter > daysInMonth) {
+          dayCells.add(
+            SizedBox(
+              height: 44,
+              child: Container(),
+            ),
+          );
+        } else {
+          final date = DateTime(selectedMonth.year, selectedMonth.month, dayCounter);
+          dayCells.add(_buildDayCell(date, dayCounter));
+          dayCounter++;
+        }
+      }
+      
+      rows.add(TableRow(children: dayCells));
+      
+      // Stop if we've placed all days
+      if (dayCounter > daysInMonth) break;
+    }
+    
+    return rows;
+  }
+
+  Widget _buildDayCell(DateTime date, int dayNumber) {
+    final status = _getAttendanceStatus(date);
+    final isSunday = date.weekday == DateTime.sunday;
+    final isGovernmentHoliday = _isHoliday(date);
+    final isToday = date.year == DateTime.now().year &&
+        date.month == DateTime.now().month &&
+        date.day == DateTime.now().day;
+    
+    Color circleColor = Colors.transparent;
+    Color borderColor = Colors.grey.shade300;
+    Color textColor = Colors.black87;
+    
+    final today = DateTime.now();
+    final isFutureDate = date.isAfter(DateTime(today.year, today.month, today.day));
+    
+    // Priority: Attendance status > Holiday/Sunday
+    if (status == 'Present') {
+      circleColor = Colors.green;
+      textColor = Colors.white;
+    } else if (status == 'Absent') {
+      circleColor = Colors.red;
+      textColor = Colors.white;
+    } else if (status == 'Late') {
+      circleColor = Colors.orange;
+      textColor = Colors.white;
+    } else if (isSunday || isGovernmentHoliday) {
+      // Show yellow for Sundays and holidays if no attendance is marked
+      circleColor = Colors.yellow.shade700;
+      textColor = Colors.white;
+    }
+    // Future dates (not marked) will show as normal text with no background
+    
+    if (isToday) {
+      borderColor = Colors.cyan;
+    }
+    
+    return Padding(
+      padding: const EdgeInsets.all(2),
+      child: SizedBox(
+        height: 44,
+        child: Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: circleColor != Colors.transparent ? circleColor : Colors.transparent,
+            border: Border.all(
+              color: borderColor,
+              width: isToday ? 2 : 1,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              '$dayNumber',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                color: textColor,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(String label, String value, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 30),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: color.withOpacity(0.8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryItem(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 16,
+            color: Colors.black87,
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryItemCompact(String label, String value) {
+    return RichText(
+      text: TextSpan(
+        style: const TextStyle(
+          fontSize: 15,
+          color: Colors.black87,
+        ),
+        children: [
+          TextSpan(text: label),
+          const TextSpan(
+            text: ' : ',
+            style: TextStyle(fontWeight: FontWeight.normal),
+          ),
+          TextSpan(
+            text: value,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  int _calculateNotMarkedDays() {
+    // Count future working days (after today)
+    final firstDay = DateTime(selectedMonth.year, selectedMonth.month, 1);
+    final lastDay = DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
+    final today = DateTime.now();
+    
+    int futureDays = 0;
+    
+    // Iterate through each day of the month
+    for (int day = 1; day <= lastDay.day; day++) {
+      final currentDate = DateTime(selectedMonth.year, selectedMonth.month, day);
+      
+      // Only count future dates (after today)
+      if (currentDate.isAfter(DateTime(today.year, today.month, today.day))) {
+        // Skip Sundays
+        if (currentDate.weekday == DateTime.sunday) {
+          continue;
+        }
+        
+        // Skip holidays
+        if (_isHoliday(currentDate)) {
+          continue;
+        }
+        
+        futureDays++;
+      }
+    }
+    
+    return futureDays;
+  }
+
+  int _calculateTotalWorkingDays() {
+    // Count working days up to today (excluding future days)
+    final firstDay = DateTime(selectedMonth.year, selectedMonth.month, 1);
+    final lastDay = DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
+    final today = DateTime.now();
+    
+    int workingDays = 0;
+    
+    // Iterate through each day of the month up to today
+    for (int day = 1; day <= lastDay.day; day++) {
+      final currentDate = DateTime(selectedMonth.year, selectedMonth.month, day);
+      
+      // Only count dates up to and including today
+      if (currentDate.isAfter(DateTime(today.year, today.month, today.day))) {
+        continue;
+      }
+      
+      // Skip Sundays
+      if (currentDate.weekday == DateTime.sunday) {
+        continue;
+      }
+      
+      // Skip holidays
+      if (_isHoliday(currentDate)) {
+        continue;
+      }
+      
+      workingDays++;
+    }
+    
+    return workingDays;
+  }
+
+}
